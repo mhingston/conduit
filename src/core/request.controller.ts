@@ -78,19 +78,19 @@ export class RequestController {
             let response: JSONRPCResponse;
             switch (method) {
                 case 'mcp.discoverTools':
-                case 'discover_tools': // Backward compatibility
+
                     response = await this.handleDiscoverTools(params, context, id);
                     break;
                 case 'mcp.callTool':
-                case 'call_tool': // Backward compatibility
+
                     response = await this.handleCallTool(params, context, id);
                     break;
                 case 'mcp.executeTypeScript':
-                case 'execute_typescript': // Backward compatibility
+
                     response = await this.handleExecuteTypeScript(params, context, id);
                     break;
                 case 'mcp.executePython':
-                case 'execute_python': // Backward compatibility
+
                     response = await this.handleExecutePython(params, context, id);
                     break;
                 case 'mcp.executeIsolate':

@@ -45,7 +45,7 @@ export class OpsServer {
             } catch (err) {
                 this.logger.error({ err }, 'Failed to fetch OTEL metrics');
                 // Fallback to minimal metrics if OTEL exporter is down
-                const fallback = metrics.toPrometheus() +
+                const fallback = '# Metrics consolidated into OpenTelemetry. Check port 9464.\n' +
                     `conduit_uptime_seconds ${process.uptime()}\n` +
                     `conduit_memory_rss_bytes ${process.memoryUsage().rss}\n`;
                 return reply.type('text/plain').send(fallback);

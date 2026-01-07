@@ -94,10 +94,7 @@ export class MetricsService {
 
     // This is now handled by OTEL Prometheus exporter, 
     // but we can provide a way to get the endpoint data if needed.
-    toPrometheus(): string {
-        // Return a note that metrics have moved to the OTEL exporter
-        return '# Metrics consolidated into OpenTelemetry. Use the OTEL Prometheus exporter on port 9464 or the proxied /metrics endpoint.\n';
-    }
+
 
     getMetrics() {
         return {

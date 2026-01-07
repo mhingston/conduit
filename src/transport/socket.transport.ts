@@ -96,13 +96,19 @@ export class SocketTransport {
         const remoteAddress = socket.remoteAddress || 'pipe';
         this.logger.debug({ remoteAddress }, 'New connection established');
 
+        socket.setEncoding('utf8');
         let buffer = '';
+        const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB limit
 
-        socket.on('data', async (data) => {
-            buffer += data.toString();
+        socket.on('data', async (chunk) => {
+            buffer += chunk;
 
-            // Simple JSON-RPC over stream (assuming one message per line or similar)
-            // For a real implementation, we would use a more robust streamer.
+            if (buffer.length > MAX_BUFFER_SIZE) {
+                this.logger.error({ remoteAddress }, 'Connection exceeded max buffer size, closing');
+                socket.destroy();
+                return;
+            }
+
             // Robust NDJSON framing
             let pos: number;
             while ((pos = buffer.indexOf('\n')) >= 0) {
@@ -152,7 +158,7 @@ export class SocketTransport {
 
                         // Strict scoping for session tokens
                         if (isSession) {
-                            const allowedMethods = ['mcp.discoverTools', 'discover_tools', 'mcp.callTool', 'call_tool'];
+                            const allowedMethods = ['mcp.discoverTools', 'mcp.callTool'];
                             if (!allowedMethods.includes(request.method)) {
                                 const errorResponse = {
                                     jsonrpc: '2.0',

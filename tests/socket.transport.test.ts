@@ -61,7 +61,7 @@ describe('SocketTransport', () => {
         });
     }
 
-    it('should handle execute_typescript request', async () => {
+    it('should handle mcp.executeTypeScript request', async () => {
         transport = new SocketTransport(logger, requestController, securityService, concurrencyService);
         const address = await transport.listen({ port: 0 });
         const portMatch = address.match(/:(\d+)$/);

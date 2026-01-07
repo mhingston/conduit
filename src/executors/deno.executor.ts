@@ -122,34 +122,52 @@ export class DenoExecutor {
             // Optimization: increased interval to 2s and added platform check
             const isWindows = platform() === 'win32';
             const monitorInterval = setInterval(async () => {
-                if (isTerminated || !child.pid || isWindows) {
-                    // Skip or stop if windows (or rely on V8 flags mainly)
-                    if (isWindows || isTerminated) {
-                        clearInterval(monitorInterval);
-                        return;
-                    }
+                if (isTerminated || !child.pid) {
+                    clearInterval(monitorInterval);
+                    return;
                 }
                 try {
-                    // On Mac/Linux, ps -o rss= -p [pid] returns RSS in KB
-                    const { stdout: rssStdout } = await execAsync(`ps -o rss= -p ${child.pid}`);
-                    const rssKb = parseInt(rssStdout.trim());
-                    if (!isNaN(rssKb)) {
-                        const rssMb = rssKb / 1024;
-                        if (rssMb > limits.memoryLimitMb) {
-                            isTerminated = true;
-                            if (typeof (monitorInterval as any) !== 'undefined') clearInterval(monitorInterval);
-                            child.kill('SIGKILL');
-                            logger.warn({ rssMb, limitMb: limits.memoryLimitMb }, 'Deno RSS limit exceeded, SIGKILL sent');
-                            resolve({
-                                stdout,
-                                stderr,
-                                exitCode: null,
-                                error: {
-                                    code: ConduitError.MemoryLimitExceeded,
-                                    message: `Memory limit exceeded: ${rssMb.toFixed(2)}MB > ${limits.memoryLimitMb}MB`,
-                                },
-                            });
+                    let rssMb = 0;
+                    if (isWindows) {
+                        try {
+                            // Windows: tasklist /FI "PID eq <pid>" /FO CSV /NH
+                            // Output: "deno.exe","1234","Console","1","12,345 K"
+                            const { stdout: tasklistOut } = await execAsync(`tasklist /FI "PID eq ${child.pid}" /FO CSV /NH`);
+                            const match = tasklistOut.match(/"([^"]+ K)"$/m); // Matches the last column with K
+                            if (match) {
+                                // Remove ' K' and ',' then parse
+                                const memStr = match[1].replace(/[ K,]/g, '');
+                                const memKb = parseInt(memStr, 10);
+                                if (!isNaN(memKb)) {
+                                    rssMb = memKb / 1024;
+                                }
+                            }
+                        } catch (e) {
+                            // tasklist might fail if process gone
                         }
+                    } else {
+                        // On Mac/Linux, ps -o rss= -p [pid] returns RSS in KB
+                        const { stdout: rssStdout } = await execAsync(`ps -o rss= -p ${child.pid}`);
+                        const rssKb = parseInt(rssStdout.trim());
+                        if (!isNaN(rssKb)) {
+                            rssMb = rssKb / 1024;
+                        }
+                    }
+
+                    if (rssMb > limits.memoryLimitMb) {
+                        isTerminated = true;
+                        if (typeof (monitorInterval as any) !== 'undefined') clearInterval(monitorInterval);
+                        child.kill('SIGKILL');
+                        logger.warn({ rssMb, limitMb: limits.memoryLimitMb }, 'Deno RSS limit exceeded, SIGKILL sent');
+                        resolve({
+                            stdout,
+                            stderr,
+                            exitCode: null,
+                            error: {
+                                code: ConduitError.MemoryLimitExceeded,
+                                message: `Memory limit exceeded: ${rssMb.toFixed(2)}MB > ${limits.memoryLimitMb}MB`,
+                            },
+                        });
                     }
                 } catch (err) {
                     // Process might have exited already or ps failed
