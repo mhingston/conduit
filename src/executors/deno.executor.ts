@@ -12,23 +12,18 @@ import { resolveAssetPath } from '../core/asset.utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export interface ExecutionResult {
-    stdout: string;
-    stderr: string;
-    exitCode: number | null;
-    error?: {
-        code: number;
-        message: string;
-    };
-}
+import { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
 
+export { ExecutionResult };
+
+// Deprecated: use ExecutorConfig
 export interface IPCInfo {
     ipcAddress: string;
     ipcToken: string;
     sdkCode?: string;
 }
 
-export class DenoExecutor {
+export class DenoExecutor implements Executor {
     private shimContent: string = '';
     // Track active processes for cleanup
     // Using 'any' for the Set because ChildProcess type import can be finicky across node versions/types
@@ -47,7 +42,7 @@ export class DenoExecutor {
         }
     }
 
-    async execute(code: string, limits: ResourceLimits, context: ExecutionContext, ipcInfo?: IPCInfo): Promise<ExecutionResult> {
+    async execute(code: string, limits: ResourceLimits, context: ExecutionContext, config?: ExecutorConfig): Promise<ExecutionResult> {
         const { logger } = context;
 
         // Check concurrent process limit
@@ -70,8 +65,8 @@ export class DenoExecutor {
         let isTerminated = false;
 
         let shim = this.getShim()
-            .replace('__CONDUIT_IPC_ADDRESS__', ipcInfo?.ipcAddress || '')
-            .replace('__CONDUIT_IPC_TOKEN__', ipcInfo?.ipcToken || '');
+            .replace('__CONDUIT_IPC_ADDRESS__', config?.ipcAddress || '')
+            .replace('__CONDUIT_IPC_TOKEN__', config?.ipcToken || '');
 
         if (shim.includes('__CONDUIT_IPC_ADDRESS__')) {
             throw new Error('Failed to inject IPC address into Deno shim');
@@ -81,8 +76,8 @@ export class DenoExecutor {
         }
 
         // Inject SDK if provided
-        if (ipcInfo?.sdkCode) {
-            shim = shim.replace('// __CONDUIT_SDK_INJECTION__', ipcInfo.sdkCode);
+        if (config?.sdkCode) {
+            shim = shim.replace('// __CONDUIT_SDK_INJECTION__', config.sdkCode);
             if (shim.includes('// __CONDUIT_SDK_INJECTION__')) {
                 // Should have been replaced
                 throw new Error('Failed to inject SDK code into Deno shim');
@@ -101,11 +96,11 @@ export class DenoExecutor {
         // Security: Restrict permissions. 
         // We only allow network access to the IPC host if it's a TCP address.
         // Unix sockets don't need --allow-net.
-        if (ipcInfo?.ipcAddress && !ipcInfo.ipcAddress.includes('/') && !ipcInfo.ipcAddress.includes('\\')) {
+        if (config?.ipcAddress && !config.ipcAddress.includes('/') && !config.ipcAddress.includes('\\')) {
             try {
                 // Use URL parser to safely extract hostname (handles IPv6 brackets and ports correctly)
                 // Prepend http:// to ensure it parses as a valid URL structure
-                const url = new URL(`http://${ipcInfo.ipcAddress}`);
+                const url = new URL(`http://${config.ipcAddress}`);
                 let normalizedHost = url.hostname;
 
                 // Remove brackets from IPv6 addresses if present (e.g., [::1] -> ::1)
@@ -117,7 +112,7 @@ export class DenoExecutor {
                 args.push(`--allow-net=${normalizedHost}`);
             } catch (err) {
                 // If address is malformed, we simply don't add the permission
-                logger.warn({ address: ipcInfo.ipcAddress, err }, 'Failed to parse IPC address for Deno permissions');
+                logger.warn({ address: config.ipcAddress, err }, 'Failed to parse IPC address for Deno permissions');
             }
         } else {
             // No network by default

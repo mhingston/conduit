@@ -91,7 +91,7 @@ describe('IsolateExecutor', () => {
         const context = new ExecutionContext({ logger });
         const limits = { timeoutMs: 5000, memoryLimitMb: 128, maxOutputBytes: 1024, maxLogEntries: 100 };
 
-        const result = await executor.execute(code, limits, context, sdkScript);
+        const result = await executor.execute(code, limits, context, { sdkCode: sdkScript });
 
         expect(result.exitCode).toBe(0);
         expect(gatewayService.callTool).toHaveBeenCalledWith('mock__hello', { name: 'Typed' }, context);

@@ -11,7 +11,7 @@ export class ExecutionContext {
     public readonly correlationId: string;
     public readonly startTime: number;
     public readonly tenantId?: string;
-    public readonly logger: Logger;
+    public logger: Logger;
     public allowedTools?: string[];
 
     constructor(options: ExecutionContextOptions) {

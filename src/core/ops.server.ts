@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { Logger } from 'pino';
-import { ConfigService } from './config.service.js';
+import { AppConfig } from './interfaces/app.config.js';
 import { GatewayService } from '../gateway/gateway.service.js';
 import { metrics } from './metrics.service.js';
 import { RequestController } from './request.controller.js';
@@ -9,13 +9,13 @@ import axios from 'axios';
 export class OpsServer {
     private fastify = Fastify();
     private logger: Logger;
-    private configService: ConfigService;
+    private config: AppConfig;
     private gatewayService: GatewayService;
     private requestController: RequestController;
 
-    constructor(logger: Logger, configService: ConfigService, gatewayService: GatewayService, requestController: RequestController) {
+    constructor(logger: Logger, config: AppConfig, gatewayService: GatewayService, requestController: RequestController) {
         this.logger = logger;
-        this.configService = configService;
+        this.config = config;
         this.gatewayService = gatewayService;
         this.requestController = requestController;
 
@@ -41,7 +41,7 @@ export class OpsServer {
             try {
                 // Proxy from OTEL Prometheus exporter
                 // Use ConfigService for metrics URL, default to standard localhost:9464
-                const metricsUrl = this.configService.get('metricsUrl') || 'http://127.0.0.1:9464/metrics';
+                const metricsUrl = this.config.metricsUrl || 'http://127.0.0.1:9464/metrics';
                 const response = await axios.get(metricsUrl);
                 return reply.type('text/plain').send(response.data);
             } catch (err) {
@@ -56,9 +56,8 @@ export class OpsServer {
     }
 
     async listen() {
-        // Ops server runs on a different port than the main transport
-        // Actually, we can make it configurable or use a offset
-        const port = this.configService.get('port') + 1;
+        // Use explicit opsPort from config
+        const port = this.config.opsPort || 3001;
         try {
             const address = await this.fastify.listen({ port, host: '0.0.0.0' });
             this.logger.info({ address }, 'Ops server listening');

@@ -8,6 +8,10 @@ import { GatewayService } from '../gateway/gateway.service.js';
 import { SecurityService } from './security.service.js';
 import { metrics } from './metrics.service.js';
 import { ExecutionService } from './execution.service.js';
+import { ExecutorRegistry } from './registries/executor.registry.js';
+import { Middleware } from './interfaces/middleware.interface.js';
+import { LoggingMiddleware } from './middleware/logging.middleware.js';
+import { ErrorHandlingMiddleware } from './middleware/error.middleware.js';
 
 export enum ConduitError {
     InternalError = -32603,
@@ -47,20 +51,40 @@ export class RequestController {
     private isolateExecutor: IsolateExecutor | null = null;
     private executionService: ExecutionService;
     private gatewayService: GatewayService;
+    private executorRegistry = new ExecutorRegistry();
+    private defaultLimits: ResourceLimits;
+    private middlewares: Middleware[] = [];
 
     constructor(logger: Logger, defaultLimits: ResourceLimits, gatewayService: GatewayService, securityService: SecurityService) {
         this.logger = logger;
+        this.defaultLimits = defaultLimits;
         this.gatewayService = gatewayService;
+
+        // Initialize executors
         this.isolateExecutor = new IsolateExecutor(logger, gatewayService);
+
+        // Register executors
+        this.executorRegistry.register('deno', this.denoExecutor);
+        this.executorRegistry.register('python', this.pyodideExecutor);
+        if (this.isolateExecutor) {
+            this.executorRegistry.register('isolate', this.isolateExecutor);
+        }
+
         this.executionService = new ExecutionService(
             logger,
             defaultLimits,
             gatewayService,
             securityService,
-            this.denoExecutor,
-            this.pyodideExecutor,
-            this.isolateExecutor
+            this.executorRegistry
         );
+
+        // Setup middleware pipeline
+        this.use(new ErrorHandlingMiddleware());
+        this.use(new LoggingMiddleware());
+    }
+
+    use(middleware: Middleware) {
+        this.middlewares.push(middleware);
     }
 
     set ipcAddress(addr: string) {
@@ -68,39 +92,51 @@ export class RequestController {
     }
 
     async handleRequest(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
-        const { method, params, id } = request;
-        const childLogger = context.logger.child({ method, id });
+        return this.executePipeline(request, context);
+    }
 
-        metrics.recordExecutionStart();
-        const startTime = Date.now();
+    private async executePipeline(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
+        let index = -1;
 
-        try {
-            let response: JSONRPCResponse;
-            switch (method) {
-                case 'mcp.discoverTools':
-                    response = await this.handleDiscoverTools(params, context, id);
-                    break;
-                case 'mcp.callTool':
-                    response = await this.handleCallTool(params, context, id);
-                    break;
-                case 'mcp.executeTypeScript':
-                    response = await this.handleExecuteTypeScript(params, context, id);
-                    break;
-                case 'mcp.executePython':
-                    response = await this.handleExecutePython(params, context, id);
-                    break;
-                case 'mcp.executeIsolate':
-                    response = await this.handleExecuteIsolate(params, context, id);
-                    break;
-                default:
-                    response = this.errorResponse(id, -32601, `Method not found: ${method}`);
+        const dispatch = async (i: number): Promise<JSONRPCResponse> => {
+            if (i <= index) throw new Error('next() called multiple times');
+            index = i;
+
+            const middleware = this.middlewares[i];
+            if (middleware) {
+                return middleware.handle(request, context, () => dispatch(i + 1));
             }
-            metrics.recordExecutionEnd(Date.now() - startTime, method);
-            return response;
-        } catch (err: any) {
-            childLogger.error({ err }, 'Error handling request');
-            metrics.recordExecutionEnd(Date.now() - startTime, method);
-            return this.errorResponse(id, ConduitError.InternalError, err.message);
+
+            return this.finalHandler(request, context);
+        };
+
+        return dispatch(0);
+    }
+
+    private async finalHandler(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
+        const { method, params, id } = request;
+        // Logging and metrics handled by middlewares now
+
+        // Try/catch handled by ErrorMiddleware, but we handle logic errors here if needed
+        // Actually routing logic should just throw and let middleware catch?
+        // Or specific logic.
+
+        switch (method) {
+            case 'mcp.discoverTools':
+                return this.handleDiscoverTools(params, context, id);
+            case 'mcp.callTool':
+                return this.handleCallTool(params, context, id);
+            case 'mcp.executeTypeScript':
+                return this.handleExecuteTypeScript(params, context, id);
+            case 'mcp.executePython':
+                return this.handleExecutePython(params, context, id);
+            case 'mcp.executeIsolate':
+                return this.handleExecuteIsolate(params, context, id);
+            default:
+                // metrics.recordExecutionEnd is handled by LoggingMiddleware??
+                // Wait, if 404, LoggingMiddleware records execution end?
+                // Yes, handle() in LoggingMiddleware wraps next().
+                return this.errorResponse(id, -32601, `Method not found: ${method}`);
         }
     }
 
@@ -205,10 +241,7 @@ export class RequestController {
     }
 
     async shutdown() {
-        await Promise.all([
-            this.pyodideExecutor.shutdown(),
-            this.denoExecutor.shutdown(),
-        ]);
+        await this.executorRegistry.shutdownAll();
     }
 
     async healthCheck() {
@@ -220,6 +253,6 @@ export class RequestController {
     }
 
     async warmup() {
-        await this.pyodideExecutor.warmup(this.executionService['defaultLimits']);
+        await this.pyodideExecutor.warmup(this.defaultLimits);
     }
 }

@@ -28,7 +28,7 @@ async function main() {
             securityService
         );
 
-        const opsServer = new OpsServer(logger, configService, gatewayService, requestController);
+        const opsServer = new OpsServer(logger, configService.all, gatewayService, requestController);
         await opsServer.listen();
 
         const concurrencyService = new ConcurrencyService(logger, {

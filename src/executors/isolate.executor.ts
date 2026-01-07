@@ -5,15 +5,9 @@ import { ResourceLimits } from '../core/config.service.js';
 import { GatewayService } from '../gateway/gateway.service.js';
 import { ConduitError } from '../core/request.controller.js';
 
-export interface IsolateExecutionResult {
-    stdout: string;
-    stderr: string;
-    exitCode: number | null;
-    error?: {
-        code: number;
-        message: string;
-    };
-}
+import { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
+
+export { ExecutionResult as IsolateExecutionResult };
 
 /**
  * IsolateExecutor - In-process V8 isolate execution using isolated-vm.
@@ -23,7 +17,7 @@ export interface IsolateExecutionResult {
  * - Hard time/memory limits
  * - No process/fs/net access
  */
-export class IsolateExecutor {
+export class IsolateExecutor implements Executor {
     private logger: Logger;
     private gatewayService: GatewayService;
 
@@ -36,8 +30,8 @@ export class IsolateExecutor {
         code: string,
         limits: ResourceLimits,
         context: ExecutionContext,
-        sdkInitScript?: string
-    ): Promise<IsolateExecutionResult> {
+        config?: ExecutorConfig
+    ): Promise<ExecutionResult> {
         const logs: string[] = [];
         const errors: string[] = [];
         let isolate: ivm.Isolate | null = null;
@@ -132,7 +126,7 @@ export class IsolateExecutor {
             await bootstrapScript.run(ctx, { timeout: 1000 });
 
             // Inject SDK (typed tools or fallback)
-            const sdkScript = sdkInitScript || `
+            const sdkScript = config?.sdkCode || `
                 const tools = {
                     $raw: async (name, args) => {
                         const resStr = await __callTool(name, JSON.stringify(args || {}));

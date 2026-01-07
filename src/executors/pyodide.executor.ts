@@ -9,21 +9,17 @@ import { resolveAssetPath } from '../core/asset.utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export interface ExecutionResult {
-    stdout: string;
-    stderr: string;
-    exitCode: number | null;
-    error?: {
-        code: number;
-        message: string;
-    };
-}
+import { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
 
+export { ExecutionResult };
+
+// Deprecated: use ExecutorConfig
 export interface IPCInfo {
     ipcAddress: string;
     ipcToken: string;
     sdkCode?: string;
 }
+
 
 interface PooledWorker {
     worker: Worker;
@@ -32,7 +28,7 @@ interface PooledWorker {
     lastUsed: number;
 }
 
-export class PyodideExecutor {
+export class PyodideExecutor implements Executor {
     private shimContent: string = '';
     private pool: PooledWorker[] = [];
     private maxPoolSize = 3;
@@ -155,7 +151,7 @@ export class PyodideExecutor {
         }
     }
 
-    async execute(code: string, limits: ConduitResourceLimits, context: ExecutionContext, ipcInfo?: IPCInfo): Promise<ExecutionResult> {
+    async execute(code: string, limits: ConduitResourceLimits, context: ExecutionContext, config?: ExecutorConfig): Promise<ExecutionResult> {
         const { logger } = context;
         const pooledWorker = await this.getWorker(logger, limits);
         const worker = pooledWorker.worker;
@@ -261,13 +257,13 @@ export class PyodideExecutor {
 
             // Prepare shim with SDK injection
             let shim = this.getShim();
-            if (ipcInfo?.sdkCode) {
-                shim = shim.replace('# __CONDUIT_SDK_INJECTION__', ipcInfo.sdkCode);
+            if (config?.sdkCode) {
+                shim = shim.replace('# __CONDUIT_SDK_INJECTION__', config.sdkCode);
             }
 
             worker.postMessage({
                 type: 'execute',
-                data: { code, limits, ipcInfo, shim }
+                data: { code, limits, ipcInfo: config, shim }
             });
         });
     }

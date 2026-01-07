@@ -1,29 +1,18 @@
 import { Logger } from 'pino';
-import { DenoExecutor } from '../executors/deno.executor.js';
-import { PyodideExecutor } from '../executors/pyodide.executor.js';
-import { IsolateExecutor } from '../executors/isolate.executor.js';
+import { ExecutorRegistry } from './registries/executor.registry.js';
 import { ResourceLimits } from './config.service.js';
 import { GatewayService } from '../gateway/gateway.service.js';
 import { SecurityService } from './security.service.js';
 import { SDKGenerator, toToolBinding } from '../sdk/index.js';
 import { ExecutionContext } from './execution.context.js';
 import { ConduitError } from './request.controller.js';
+import { ExecutionResult } from './interfaces/executor.interface.js';
 
-export interface ExecutionResult {
-    stdout: string;
-    stderr: string;
-    exitCode: number | null;
-    error?: {
-        code: number;
-        message: string;
-    };
-}
+export { ExecutionResult };
 
 export class ExecutionService {
     private logger: Logger;
-    private denoExecutor: DenoExecutor;
-    private pyodideExecutor: PyodideExecutor;
-    private isolateExecutor: IsolateExecutor | null = null;
+    private executorRegistry: ExecutorRegistry;
     private sdkGenerator = new SDKGenerator();
     private defaultLimits: ResourceLimits;
     private gatewayService: GatewayService;
@@ -35,17 +24,13 @@ export class ExecutionService {
         defaultLimits: ResourceLimits,
         gatewayService: GatewayService,
         securityService: SecurityService,
-        denoExecutor: DenoExecutor,
-        pyodideExecutor: PyodideExecutor,
-        isolateExecutor: IsolateExecutor | null = null
+        executorRegistry: ExecutorRegistry
     ) {
         this.logger = logger;
         this.defaultLimits = defaultLimits;
         this.gatewayService = gatewayService;
         this.securityService = securityService;
-        this.denoExecutor = denoExecutor;
-        this.pyodideExecutor = pyodideExecutor;
-        this.isolateExecutor = isolateExecutor;
+        this.executorRegistry = executorRegistry;
     }
 
     set ipcAddress(addr: string) {
@@ -63,15 +48,7 @@ export class ExecutionService {
         // 1. Validation
         const securityResult = this.securityService.validateCode(code);
         if (!securityResult.valid) {
-            return {
-                stdout: '',
-                stderr: '',
-                exitCode: null,
-                error: {
-                    code: ConduitError.Forbidden,
-                    message: securityResult.message || 'Access denied'
-                }
-            };
+            return this.createErrorResult(ConduitError.Forbidden, securityResult.message || 'Access denied');
         }
 
         // 2. Routing Logic (Isolate vs Deno)
@@ -81,19 +58,35 @@ export class ExecutionService {
             /\bDeno\./.test(bashedCode) ||
             /\bDeno\b/.test(bashedCode);
 
-        if (!hasImports && this.isolateExecutor) {
-            return this.executeIsolate(code, effectiveLimits, context, allowedTools);
+        // Try to use IsolateExecutor if available and code is simple
+        if (!hasImports && this.executorRegistry.has('isolate')) {
+            const result = await this.executeIsolate(code, effectiveLimits, context, allowedTools);
+            // If result failed due to missing isolate (redundant check but safe) or internal error that implies it's not suitable?
+            // Actually executeIsolate returns ExecutionResult. If it returns valid result, we are good.
+            if (result.error && result.error.code === ConduitError.InternalError && result.error.message === 'IsolateExecutor not available') {
+                // Fallback? No, if we decided to route there we stick with it or fail.
+                // But wait, my executeIsolate impl below wraps logic.
+                // Let's keep executeIsolate as a delegate.
+            }
+            return result;
         }
 
-        // 3. SDK Generation
+        // 3. Fallback to Deno
+        if (!this.executorRegistry.has('deno')) {
+            return this.createErrorResult(ConduitError.InternalError, 'Deno execution not available');
+        }
+
+        const executor = this.executorRegistry.get('deno')!;
+
+        // 4. SDK Generation
         const tools = await this.gatewayService.discoverTools(context);
         const bindings = tools.map(t => toToolBinding(t.name, t.inputSchema, t.description));
         const sdkCode = this.sdkGenerator.generateTypeScript(bindings, allowedTools);
 
-        // 4. Session & Execution
+        // 5. Session & Execution
         const sessionToken = this.securityService.createSession(allowedTools);
         try {
-            return await this.denoExecutor.execute(code, effectiveLimits, context, {
+            return await executor.execute(code, effectiveLimits, context, {
                 ipcAddress: this._ipcAddress,
                 ipcToken: sessionToken,
                 sdkCode
@@ -111,17 +104,14 @@ export class ExecutionService {
     ): Promise<ExecutionResult> {
         const effectiveLimits = { ...this.defaultLimits, ...limits };
 
+        if (!this.executorRegistry.has('python')) {
+            return this.createErrorResult(ConduitError.InternalError, 'Python execution not available');
+        }
+        const executor = this.executorRegistry.get('python')!;
+
         const securityResult = this.securityService.validateCode(code);
         if (!securityResult.valid) {
-            return {
-                stdout: '',
-                stderr: '',
-                exitCode: null,
-                error: {
-                    code: ConduitError.Forbidden,
-                    message: securityResult.message || 'Access denied'
-                }
-            };
+            return this.createErrorResult(ConduitError.Forbidden, securityResult.message || 'Access denied');
         }
 
         const tools = await this.gatewayService.discoverTools(context);
@@ -130,7 +120,7 @@ export class ExecutionService {
 
         const sessionToken = this.securityService.createSession(allowedTools);
         try {
-            return await this.pyodideExecutor.execute(code, effectiveLimits, context, {
+            return await executor.execute(code, effectiveLimits, context, {
                 ipcAddress: this._ipcAddress,
                 ipcToken: sessionToken,
                 sdkCode
@@ -146,30 +136,15 @@ export class ExecutionService {
         context: ExecutionContext,
         allowedTools?: string[]
     ): Promise<ExecutionResult> {
-        if (!this.isolateExecutor) {
-            return {
-                stdout: '',
-                stderr: '',
-                exitCode: null,
-                error: {
-                    code: ConduitError.InternalError,
-                    message: 'IsolateExecutor not available'
-                }
-            };
+        if (!this.executorRegistry.has('isolate')) {
+            return this.createErrorResult(ConduitError.InternalError, 'IsolateExecutor not available');
         }
+        const executor = this.executorRegistry.get('isolate')!;
 
         const effectiveLimits = { ...this.defaultLimits, ...limits };
         const securityResult = this.securityService.validateCode(code);
         if (!securityResult.valid) {
-            return {
-                stdout: '',
-                stderr: '',
-                exitCode: null,
-                error: {
-                    code: ConduitError.Forbidden,
-                    message: securityResult.message || 'Access denied'
-                }
-            };
+            return this.createErrorResult(ConduitError.Forbidden, securityResult.message || 'Access denied');
         }
 
         const tools = await this.gatewayService.discoverTools(context);
@@ -177,17 +152,18 @@ export class ExecutionService {
         const sdkCode = this.sdkGenerator.generateIsolateSDK(bindings, allowedTools);
 
         try {
-            return await this.isolateExecutor.execute(code, effectiveLimits, context, sdkCode);
+            return await executor.execute(code, effectiveLimits, context, { sdkCode });
         } catch (err: any) {
-            return {
-                stdout: '',
-                stderr: '',
-                exitCode: null,
-                error: {
-                    code: ConduitError.InternalError,
-                    message: err.message
-                }
-            };
+            return this.createErrorResult(ConduitError.InternalError, err.message);
         }
+    }
+
+    private createErrorResult(code: number, message: string): ExecutionResult {
+        return {
+            stdout: '',
+            stderr: '',
+            exitCode: null,
+            error: { code, message }
+        };
     }
 }
