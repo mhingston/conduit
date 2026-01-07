@@ -40,7 +40,9 @@ export class OpsServer {
         this.fastify.get('/metrics', async (request, reply) => {
             try {
                 // Proxy from OTEL Prometheus exporter
-                const response = await axios.get('http://127.0.0.1:9464/metrics');
+                // Use ConfigService for metrics URL, default to standard localhost:9464
+                const metricsUrl = this.configService.get('metricsUrl') || 'http://127.0.0.1:9464/metrics';
+                const response = await axios.get(metricsUrl);
                 return reply.type('text/plain').send(response.data);
             } catch (err) {
                 this.logger.error({ err }, 'Failed to fetch OTEL metrics');

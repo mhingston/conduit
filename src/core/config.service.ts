@@ -27,6 +27,7 @@ export const ConfigSchema = z.object({
     ]),
     ipcBearerToken: z.string().optional().default(() => Math.random().toString(36).substring(7)),
     maxConcurrent: z.number().default(10),
+    metricsUrl: z.string().default('http://127.0.0.1:9464/metrics'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -39,6 +40,7 @@ export class ConfigService {
             port: process.env.PORT,
             nodeEnv: process.env.NODE_ENV,
             logLevel: process.env.LOG_LEVEL,
+            metricsUrl: process.env.METRICS_URL,
             ...overrides,
         };
 
