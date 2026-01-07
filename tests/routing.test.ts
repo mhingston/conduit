@@ -46,7 +46,26 @@ describe('RequestController Routing', () => {
             mockGatewayService,
             mockSecurityService
         );
-        // Inject mock executors
+        // Inject mock execution service
+        const mockExecutionService = {
+            executeTypeScript: vi.fn().mockImplementation(async (code) => {
+                const bashedCode = code.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '');
+                const hasImports = /^\s*import\s/m.test(bashedCode) ||
+                    /^\s*export\s/m.test(bashedCode) ||
+                    /\bDeno\./.test(bashedCode) ||
+                    /\bDeno\b/.test(bashedCode);
+                
+                if (!hasImports) {
+                    await mockIsolateExecutor.execute();
+                    return { stdout: 'isolate', stderr: '', exitCode: 0 };
+                } else {
+                    await mockDenoExecutor.execute();
+                    return { stdout: 'deno', stderr: '', exitCode: 0 };
+                }
+            }),
+            ipcAddress: ''
+        };
+        (controller as any).executionService = mockExecutionService;
         (controller as any).denoExecutor = mockDenoExecutor;
         (controller as any).pyodideExecutor = mockPyodideExecutor;
         // Inject mock isolate executor
