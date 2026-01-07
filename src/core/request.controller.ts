@@ -283,8 +283,7 @@ export class RequestController {
     async shutdown() {
         await Promise.all([
             this.pyodideExecutor.shutdown(),
-            // Deno uses child processes that are killed after each run, 
-            // but if we ever add a Deno pool, we'd shut it down here.
+            this.denoExecutor.shutdown(),
         ]);
     }
 
@@ -294,5 +293,9 @@ export class RequestController {
             status: pyodideHealth.status === 'ok' ? 'ok' : 'error',
             pyodide: pyodideHealth
         };
+    }
+
+    async warmup() {
+        await this.pyodideExecutor.warmup(this.defaultLimits);
     }
 }

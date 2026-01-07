@@ -40,6 +40,9 @@ async function main() {
         const address = await transport.listen({ port });
         requestController.ipcAddress = address;
 
+        // Pre-warm workers
+        await requestController.warmup();
+
         logger.info('Conduit server started');
 
         // Handle graceful shutdown

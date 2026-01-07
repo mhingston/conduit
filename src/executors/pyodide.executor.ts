@@ -112,6 +112,49 @@ export class PyodideExecutor {
         });
     }
 
+    async warmup(limits: ConduitResourceLimits) {
+        // Pre-fill the pool up to maxPoolSize
+        const needed = this.maxPoolSize - this.pool.length;
+        if (needed <= 0) return;
+
+        console.info(`Pre-warming ${needed} Pyodide workers...`);
+        const promises = [];
+        for (let i = 0; i < needed; i++) {
+            promises.push(this.createAndPoolWorker(limits));
+        }
+        await Promise.all(promises);
+        console.info(`Pyodide pool pre-warmed with ${this.pool.length} workers.`);
+    }
+
+    private async createAndPoolWorker(limits: ConduitResourceLimits) {
+        // Small optimization: don't double-fill if racing
+        if (this.pool.length >= this.maxPoolSize) return;
+
+        const worker = this.createWorker(limits);
+        const pooled: PooledWorker = { worker, busy: true, runs: 0, lastUsed: Date.now() };
+        this.pool.push(pooled);
+
+        // Wait for ready signal
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const onMessage = (msg: any) => {
+                    if (msg.type === 'ready') {
+                        worker.off('message', onMessage);
+                        resolve();
+                    }
+                };
+                worker.on('message', onMessage);
+                worker.on('error', reject);
+                setTimeout(() => reject(new Error('Worker init timeout')), 10000);
+            });
+            pooled.busy = false;
+        } catch (err) {
+            // If failed, remove from pool
+            this.pool = this.pool.filter(p => p !== pooled);
+            worker.terminate();
+        }
+    }
+
     async execute(code: string, limits: ConduitResourceLimits, context: ExecutionContext, ipcInfo?: IPCInfo): Promise<ExecutionResult> {
         const { logger } = context;
         const pooledWorker = await this.getWorker(logger, limits);

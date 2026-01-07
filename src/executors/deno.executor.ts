@@ -30,6 +30,10 @@ export interface IPCInfo {
 
 export class DenoExecutor {
     private shimContent: string = '';
+    // Track active processes for cleanup
+    // Using 'any' for the Set because ChildProcess type import can be finicky across node versions/types
+    // but at runtime it is a ChildProcess
+    private activeProcesses = new Set<any>();
 
     private getShim(): string {
         if (this.shimContent) return this.shimContent;
@@ -94,9 +98,15 @@ export class DenoExecutor {
             }
         });
 
+        this.activeProcesses.add(child);
+
         child.on('spawn', () => {
             // logger.info('Deno process spawned');
         });
+
+        const cleanupProcess = () => {
+            this.activeProcesses.delete(child);
+        };
 
         return new Promise((resolve) => {
             const timeout = setTimeout(() => {
@@ -105,6 +115,7 @@ export class DenoExecutor {
                     if (typeof (monitorInterval as any) !== 'undefined') clearInterval(monitorInterval);
                     child.kill('SIGKILL');
                     logger.warn('Execution timed out, SIGKILL sent');
+                    cleanupProcess();
                     resolve({
                         stdout,
                         stderr,
@@ -158,6 +169,7 @@ export class DenoExecutor {
                         if (typeof (monitorInterval as any) !== 'undefined') clearInterval(monitorInterval);
                         child.kill('SIGKILL');
                         logger.warn({ rssMb, limitMb: limits.memoryLimitMb }, 'Deno RSS limit exceeded, SIGKILL sent');
+                        cleanupProcess();
                         resolve({
                             stdout,
                             stderr,
@@ -186,6 +198,7 @@ export class DenoExecutor {
                     if (typeof (monitorInterval as any) !== 'undefined') clearInterval(monitorInterval);
                     child.kill('SIGKILL');
                     logger.warn({ bytes: totalOutputBytes, lines: totalLogEntries }, 'Limits exceeded, SIGKILL sent');
+                    cleanupProcess();
                     resolve({
                         stdout: stdout + chunk.toString().slice(0, limits.maxOutputBytes - (totalOutputBytes - chunk.length)),
                         stderr,
@@ -212,6 +225,7 @@ export class DenoExecutor {
                     if (typeof (monitorInterval as any) !== 'undefined') clearInterval(monitorInterval);
                     child.kill('SIGKILL');
                     logger.warn({ bytes: totalOutputBytes, lines: totalLogEntries }, 'Limits exceeded, SIGKILL sent');
+                    cleanupProcess();
                     resolve({
                         stdout,
                         stderr: stderr + chunk.toString().slice(0, limits.maxOutputBytes - (totalOutputBytes - chunk.length)),
@@ -229,6 +243,7 @@ export class DenoExecutor {
             child.on('close', (code) => {
                 clearTimeout(timeout);
                 if (typeof (monitorInterval as any) !== 'undefined') clearInterval(monitorInterval);
+                cleanupProcess();
                 if (isTerminated) return; // Already resolved via timeout or limit
 
                 resolve({
@@ -241,6 +256,7 @@ export class DenoExecutor {
             child.on('error', (err) => {
                 clearTimeout(timeout);
                 logger.error({ err }, 'Child process error');
+                cleanupProcess();
                 resolve({
                     stdout,
                     stderr,
@@ -256,5 +272,16 @@ export class DenoExecutor {
             child.stdin.write(fullCode);
             child.stdin.end();
         });
+    }
+
+    async shutdown() {
+        for (const child of this.activeProcesses) {
+            try {
+                child.kill('SIGKILL');
+            } catch (err) {
+                // Ignore, process might be dead already
+            }
+        }
+        this.activeProcesses.clear();
     }
 }
