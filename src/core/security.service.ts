@@ -12,19 +12,6 @@ export class SecurityService {
     private logger: Logger;
     private ipcToken: string;
 
-    private readonly blockedPatterns = [
-        /process\./,
-        /require\(/,
-        /import\(/,
-        /child_process/,
-        /fs\./,
-        /os\./,
-        /eval\(/,
-        /Function\(/,
-        /__proto__/,
-        /constructor/,
-    ];
-
     private readonly privateRanges = [
         /^127\./,
         /^10\./,
@@ -51,12 +38,8 @@ export class SecurityService {
     }
 
     validateCode(code: string): { valid: boolean; message?: string } {
-        for (const pattern of this.blockedPatterns) {
-            if (pattern.test(code)) {
-                this.logger.warn({ pattern: pattern.toString() }, 'Blocked code pattern detected');
-                return { valid: false, message: `Access denied: blocked pattern ${pattern.toString()}` };
-            }
-        }
+        // Regex-based validation is insufficient and provides a false sense of security.
+        // We rely on runtime sandboxing (Deno permissions, Isolate context) instead.
         return { valid: true };
     }
 

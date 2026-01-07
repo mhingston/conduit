@@ -76,12 +76,23 @@ export class DenoExecutor {
         // We only allow network access to the IPC host if it's a TCP address.
         // Unix sockets don't need --allow-net.
         if (ipcInfo?.ipcAddress && !ipcInfo.ipcAddress.includes('/') && !ipcInfo.ipcAddress.includes('\\')) {
-            const host = ipcInfo.ipcAddress.split(':')[0];
-            let normalizedHost = host.replace(/[\[\]]/g, '');
-            if (normalizedHost === '0.0.0.0' || normalizedHost === '::' || normalizedHost === '::1' || normalizedHost === '') {
-                normalizedHost = '127.0.0.1';
+            try {
+                // Use URL parser to safely extract hostname (handles IPv6 brackets and ports correctly)
+                // Prepend http:// to ensure it parses as a valid URL structure
+                const url = new URL(`http://${ipcInfo.ipcAddress}`);
+                let normalizedHost = url.hostname;
+
+                // Remove brackets from IPv6 addresses if present (e.g., [::1] -> ::1)
+                normalizedHost = normalizedHost.replace(/[\[\]]/g, '');
+
+                if (normalizedHost === '0.0.0.0' || normalizedHost === '::' || normalizedHost === '::1' || normalizedHost === '') {
+                    normalizedHost = '127.0.0.1';
+                }
+                args.push(`--allow-net=${normalizedHost}`);
+            } catch (err) {
+                // If address is malformed, we simply don't add the permission
+                logger.warn({ address: ipcInfo.ipcAddress, err }, 'Failed to parse IPC address for Deno permissions');
             }
-            args.push(`--allow-net=${normalizedHost}`);
         } else {
             // No network by default
         }
