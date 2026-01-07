@@ -7,7 +7,7 @@ import { ResourceLimits } from './config.service.js';
 import { GatewayService } from '../gateway/gateway.service.js';
 import { SecurityService } from './security.service.js';
 import { metrics } from './metrics.service.js';
-import { SDKGenerator, toToolBinding } from '../sdk/index.js';
+import { ExecutionService } from './execution.service.js';
 
 export enum ConduitError {
     InternalError = -32603,
@@ -45,26 +45,26 @@ export class RequestController {
     private denoExecutor = new DenoExecutor();
     private pyodideExecutor = new PyodideExecutor();
     private isolateExecutor: IsolateExecutor | null = null;
-    private sdkGenerator = new SDKGenerator();
-    private defaultLimits: ResourceLimits;
+    private executionService: ExecutionService;
     private gatewayService: GatewayService;
-    private securityService: SecurityService;
-    private _ipcAddress: string = '';
 
     constructor(logger: Logger, defaultLimits: ResourceLimits, gatewayService: GatewayService, securityService: SecurityService) {
         this.logger = logger;
-        this.defaultLimits = defaultLimits;
         this.gatewayService = gatewayService;
-        this.securityService = securityService;
         this.isolateExecutor = new IsolateExecutor(logger, gatewayService);
+        this.executionService = new ExecutionService(
+            logger,
+            defaultLimits,
+            gatewayService,
+            securityService,
+            this.denoExecutor,
+            this.pyodideExecutor,
+            this.isolateExecutor
+        );
     }
 
     set ipcAddress(addr: string) {
-        this._ipcAddress = addr;
-    }
-
-    get ipcAddress(): string {
-        return this._ipcAddress;
+        this.executionService.ipcAddress = addr;
     }
 
     async handleRequest(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
@@ -78,19 +78,15 @@ export class RequestController {
             let response: JSONRPCResponse;
             switch (method) {
                 case 'mcp.discoverTools':
-
                     response = await this.handleDiscoverTools(params, context, id);
                     break;
                 case 'mcp.callTool':
-
                     response = await this.handleCallTool(params, context, id);
                     break;
                 case 'mcp.executeTypeScript':
-
                     response = await this.handleExecuteTypeScript(params, context, id);
                     break;
                 case 'mcp.executePython':
-
                     response = await this.handleExecutePython(params, context, id);
                     break;
                 case 'mcp.executeIsolate':
@@ -128,145 +124,73 @@ export class RequestController {
     private async handleExecuteTypeScript(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
         const { code, limits, allowedTools } = params;
 
-        const bashedCode = code.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, ''); // Simple comment strip to avoid false positives
-        const hasImports = /^\s*import\s/m.test(bashedCode) ||
-            /^\s*export\s/m.test(bashedCode) ||
-            /\bDeno\./.test(bashedCode) ||
-            /\bDeno\b/.test(bashedCode); // Match 'Deno' global usage
-
-        if (!hasImports && this.isolateExecutor) {
-            // Use IsolateExecutor for simple scripts (Phase 3c)
-            return this.handleExecuteIsolate(params, context, id);
-        }
-
-        // Fallback to DenoExecutor for complex scripts / modules
-        const effectiveLimits = { ...this.defaultLimits, ...limits };
-
         if (Array.isArray(allowedTools)) {
             context.allowedTools = allowedTools;
         }
 
-        const securityResult = this.securityService.validateCode(code);
-        if (!securityResult.valid) {
-            return this.errorResponse(id, ConduitError.Forbidden, securityResult.message || 'Access denied');
+        const result = await this.executionService.executeTypeScript(code, limits, context, allowedTools);
+
+        if (result.error) {
+            return this.errorResponse(id, result.error.code, result.error.message);
         }
 
-        // Generate SDK from discovered tools
-        const tools = await this.gatewayService.discoverTools(context);
-        const bindings = tools.map(t => toToolBinding(t.name, t.inputSchema, t.description));
-        const sdkCode = this.sdkGenerator.generateTypeScript(bindings, allowedTools as string[] | undefined);
-
-        const sessionToken = this.securityService.createSession(allowedTools as string[] | undefined);
-        try {
-            const result = await this.denoExecutor.execute(code, effectiveLimits, context, {
-                ipcAddress: this._ipcAddress,
-                ipcToken: sessionToken,
-                sdkCode
-            });
-
-            if (result.error) {
-                return this.errorResponse(id, result.error.code, result.error.message);
-            }
-
-            return {
-                jsonrpc: '2.0',
-                id,
-                result: {
-                    stdout: result.stdout,
-                    stderr: result.stderr,
-                    exitCode: result.exitCode,
-                },
-            };
-        } finally {
-            this.securityService.invalidateSession(sessionToken);
-        }
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+                stdout: result.stdout,
+                stderr: result.stderr,
+                exitCode: result.exitCode,
+            },
+        };
     }
 
     private async handleExecutePython(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
         const { code, limits, allowedTools } = params;
-        const effectiveLimits = { ...this.defaultLimits, ...limits };
 
         if (Array.isArray(allowedTools)) {
             context.allowedTools = allowedTools;
         }
 
-        const securityResult = this.securityService.validateCode(code);
-        if (!securityResult.valid) {
-            return this.errorResponse(id, ConduitError.Forbidden, securityResult.message || 'Access denied');
+        const result = await this.executionService.executePython(code, limits, context, allowedTools);
+
+        if (result.error) {
+            return this.errorResponse(id, result.error.code, result.error.message);
         }
 
-        // Generate SDK from discovered tools
-        const tools = await this.gatewayService.discoverTools(context);
-        const bindings = tools.map(t => toToolBinding(t.name, t.inputSchema, t.description));
-        const sdkCode = this.sdkGenerator.generatePython(bindings, allowedTools as string[] | undefined);
-
-        const sessionToken = this.securityService.createSession(allowedTools as string[] | undefined);
-        try {
-            const result = await this.pyodideExecutor.execute(code, effectiveLimits, context, {
-                ipcAddress: this._ipcAddress,
-                ipcToken: sessionToken,
-                sdkCode
-            });
-
-            if (result.error) {
-                return this.errorResponse(id, result.error.code, result.error.message);
-            }
-
-            return {
-                jsonrpc: '2.0',
-                id,
-                result: {
-                    stdout: result.stdout,
-                    stderr: result.stderr,
-                    exitCode: result.exitCode,
-                },
-            };
-        } finally {
-            this.securityService.invalidateSession(sessionToken);
-        }
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+                stdout: result.stdout,
+                stderr: result.stderr,
+                exitCode: result.exitCode,
+            },
+        };
     }
 
     private async handleExecuteIsolate(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
         const { code, limits, allowedTools } = params;
-        const effectiveLimits = { ...this.defaultLimits, ...limits };
 
         if (Array.isArray(allowedTools)) {
             context.allowedTools = allowedTools;
         }
 
-        const securityResult = this.securityService.validateCode(code);
-        if (!securityResult.valid) {
-            return this.errorResponse(id, ConduitError.Forbidden, securityResult.message || 'Access denied');
+        const result = await this.executionService.executeIsolate(code, limits, context, allowedTools);
+
+        if (result.error) {
+            return this.errorResponse(id, result.error.code, result.error.message);
         }
 
-        if (!this.isolateExecutor) {
-            return this.errorResponse(id, ConduitError.InternalError, 'IsolateExecutor not available');
-        }
-
-        try {
-            // New: Generate SDK for IsolateExecutor
-            const tools = await this.gatewayService.discoverTools(context);
-            const bindings = tools.map(t => toToolBinding(t.name, t.inputSchema, t.description));
-            const sdkCode = this.sdkGenerator.generateIsolateSDK(bindings, allowedTools as string[] | undefined);
-
-            const result = await this.isolateExecutor.execute(code, effectiveLimits, context, sdkCode);
-
-            if (result.error) {
-                return this.errorResponse(id, result.error.code, result.error.message);
-            }
-
-            return {
-                jsonrpc: '2.0',
-                id,
-                result: {
-                    stdout: result.stdout,
-                    stderr: result.stderr,
-                    exitCode: result.exitCode,
-                },
-            };
-        } catch (err: any) {
-            return this.errorResponse(id, ConduitError.InternalError, err.message);
-        }
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+                stdout: result.stdout,
+                stderr: result.stderr,
+                exitCode: result.exitCode,
+            },
+        };
     }
 
     private errorResponse(id: string | number, code: number, message: string): JSONRPCResponse {
@@ -296,6 +220,6 @@ export class RequestController {
     }
 
     async warmup() {
-        await this.pyodideExecutor.warmup(this.defaultLimits);
+        await this.pyodideExecutor.warmup(this.executionService['defaultLimits']);
     }
 }
