@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { ExecutionContext } from '../core/execution.context.js';
 import { ResourceLimits as ConduitResourceLimits } from '../core/config.service.js';
 import { ConduitError } from '../core/request.controller.js';
+import { resolveAssetPath } from '../core/asset.utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,12 +41,11 @@ export class PyodideExecutor {
     private getShim(): string {
         if (this.shimContent) return this.shimContent;
         try {
-            const assetPath = path.resolve(__dirname, '../assets/python-shim.py');
+            const assetPath = resolveAssetPath('python-shim.py');
             this.shimContent = fs.readFileSync(assetPath, 'utf-8');
             return this.shimContent;
-        } catch (err) {
-            console.warn('Failed to load Python shim, using empty fallback');
-            return '';
+        } catch (err: any) {
+            throw new Error(`Failed to load Python shim: ${err.message}`);
         }
     }
 

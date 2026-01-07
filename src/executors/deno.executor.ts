@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { ExecutionContext } from '../core/execution.context.js';
 import { ResourceLimits } from '../core/config.service.js';
 import { ConduitError } from '../core/request.controller.js';
+import { resolveAssetPath } from '../core/asset.utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -33,13 +34,11 @@ export class DenoExecutor {
     private getShim(): string {
         if (this.shimContent) return this.shimContent;
         try {
-            // Shims are in dist/assets, and we are in dist/executors (or src/executors)
-            const assetPath = path.resolve(__dirname, '../assets/deno-shim.ts');
+            const assetPath = resolveAssetPath('deno-shim.ts');
             this.shimContent = fs.readFileSync(assetPath, 'utf-8');
             return this.shimContent;
-        } catch (err) {
-            console.warn('Failed to load Deno shim, using empty fallback');
-            return '';
+        } catch (err: any) {
+            throw new Error(`Failed to load Deno shim: ${err.message}`);
         }
     }
 
