@@ -49,9 +49,9 @@ export class PyodideExecutor {
         }
     }
 
-    private async getWorker(logger: any, limits?: ConduitResourceLimits): Promise<PooledWorker> {
-        // Clean up old/idle workers if needed (stub for now)
+    private waitQueue: Array<(worker: PooledWorker) => void> = [];
 
+    private async getWorker(logger: any, limits?: ConduitResourceLimits): Promise<PooledWorker> {
         // Find available worker
         let pooled = this.pool.find(w => !w.busy);
         if (pooled) {
@@ -82,18 +82,9 @@ export class PyodideExecutor {
             return pooled;
         }
 
-        // Wait for a worker to become available
+        // Wait for a worker to become available via queue
         return new Promise((resolve) => {
-            const check = () => {
-                const w = this.pool.find(pw => !pw.busy);
-                if (w) {
-                    w.busy = true;
-                    resolve(w);
-                } else {
-                    setTimeout(check, 50);
-                }
-            };
-            check();
+            this.waitQueue.push(resolve);
         });
     }
 
@@ -148,6 +139,15 @@ export class PyodideExecutor {
                 setTimeout(() => reject(new Error('Worker init timeout')), 10000);
             });
             pooled.busy = false;
+
+            // Check if anyone is waiting for a worker immediately
+            if (this.waitQueue.length > 0) {
+                const nextResolve = this.waitQueue.shift();
+                if (nextResolve) {
+                    pooled.busy = true;
+                    nextResolve(pooled);
+                }
+            }
         } catch (err) {
             // If failed, remove from pool
             this.pool = this.pool.filter(p => p !== pooled);
@@ -185,6 +185,16 @@ export class PyodideExecutor {
                 worker.off('error', onError);
 
                 pooledWorker.busy = false;
+
+                // Notify next waiter if any
+                if (this.waitQueue.length > 0) {
+                    const nextResolve = this.waitQueue.shift();
+                    if (nextResolve) {
+                        pooledWorker.busy = true;
+                        nextResolve(pooledWorker);
+                    }
+                }
+
                 pooledWorker.runs++;
                 pooledWorker.lastUsed = Date.now();
 

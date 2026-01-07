@@ -52,7 +52,7 @@ export class DenoExecutor {
 
         // Check concurrent process limit
         if (this.activeProcesses.size >= this.MAX_CONCURRENT_PROCESSES) {
-             return {
+            return {
                 stdout: '',
                 stderr: '',
                 exitCode: null,
@@ -73,9 +73,20 @@ export class DenoExecutor {
             .replace('__CONDUIT_IPC_ADDRESS__', ipcInfo?.ipcAddress || '')
             .replace('__CONDUIT_IPC_TOKEN__', ipcInfo?.ipcToken || '');
 
+        if (shim.includes('__CONDUIT_IPC_ADDRESS__')) {
+            throw new Error('Failed to inject IPC address into Deno shim');
+        }
+        if (shim.includes('__CONDUIT_IPC_TOKEN__')) {
+            throw new Error('Failed to inject IPC token into Deno shim');
+        }
+
         // Inject SDK if provided
         if (ipcInfo?.sdkCode) {
             shim = shim.replace('// __CONDUIT_SDK_INJECTION__', ipcInfo.sdkCode);
+            if (shim.includes('// __CONDUIT_SDK_INJECTION__')) {
+                // Should have been replaced
+                throw new Error('Failed to inject SDK code into Deno shim');
+            }
         }
 
         const fullCode = shim + '\n' + code;
