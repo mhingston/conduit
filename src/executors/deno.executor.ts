@@ -34,6 +34,7 @@ export class DenoExecutor {
     // Using 'any' for the Set because ChildProcess type import can be finicky across node versions/types
     // but at runtime it is a ChildProcess
     private activeProcesses = new Set<any>();
+    private readonly MAX_CONCURRENT_PROCESSES = 10;
 
     private getShim(): string {
         if (this.shimContent) return this.shimContent;
@@ -48,6 +49,20 @@ export class DenoExecutor {
 
     async execute(code: string, limits: ResourceLimits, context: ExecutionContext, ipcInfo?: IPCInfo): Promise<ExecutionResult> {
         const { logger } = context;
+
+        // Check concurrent process limit
+        if (this.activeProcesses.size >= this.MAX_CONCURRENT_PROCESSES) {
+             return {
+                stdout: '',
+                stderr: '',
+                exitCode: null,
+                error: {
+                    code: ConduitError.ServerBusy,
+                    message: 'Too many concurrent Deno processes'
+                }
+            };
+        }
+
         let stdout = '';
         let stderr = '';
         let totalOutputBytes = 0;
