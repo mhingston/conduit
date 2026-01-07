@@ -7,7 +7,11 @@ import { RequestController } from './core/request.controller.js';
 import { GatewayService } from './gateway/gateway.service.js';
 import { SecurityService } from './core/security.service.js';
 import { OtelService } from './core/otel.service.js';
-
+import { DenoExecutor } from './executors/deno.executor.js';
+import { PyodideExecutor } from './executors/pyodide.executor.js';
+import { IsolateExecutor } from './executors/isolate.executor.js';
+import { ExecutorRegistry } from './core/registries/executor.registry.js';
+import { ExecutionService } from './core/execution.service.js';
 async function main() {
     const configService = new ConfigService();
     const logger = createLogger(configService);
@@ -19,11 +23,30 @@ async function main() {
         const securityService = new SecurityService(logger, configService.get('ipcBearerToken'));
 
         const gatewayService = new GatewayService(logger, securityService);
-        // registerUpstream from configService...
+        const upstreams = configService.get('upstreams') || [];
+        for (const upstream of upstreams) {
+            gatewayService.registerUpstream(upstream);
+        }
+
+        const executorRegistry = new ExecutorRegistry();
+        executorRegistry.register('deno', new DenoExecutor());
+        executorRegistry.register('python', new PyodideExecutor());
+
+        // IsolateExecutor needs gatewayService
+        const isolateExecutor = new IsolateExecutor(logger, gatewayService);
+        executorRegistry.register('isolate', isolateExecutor);
+
+        const executionService = new ExecutionService(
+            logger,
+            configService.get('resourceLimits'),
+            gatewayService,
+            securityService,
+            executorRegistry
+        );
 
         const requestController = new RequestController(
             logger,
-            configService.get('resourceLimits'),
+            executionService,
             gatewayService,
             securityService
         );
@@ -38,7 +61,7 @@ async function main() {
         const transport = new SocketTransport(logger, requestController, concurrencyService);
         const port = configService.get('port');
         const address = await transport.listen({ port });
-        requestController.ipcAddress = address;
+        executionService.ipcAddress = address; // Update IPC address on ExecutionService instead of RequestController
 
         // Pre-warm workers
         await requestController.warmup();

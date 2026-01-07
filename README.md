@@ -119,6 +119,49 @@ Configuration is managed via environment variables and validated with Zod.
 | `LOG_LEVEL` | Logging verbosity | `info` |
 | `IPC_BEARER_TOKEN` | Bearer token for server authorization | `(generated)` |
 
+### Configuration File (`conduit.yaml`)
+
+Conduit supports loading configuration from a YAML or JSON file. By default, it looks for `conduit.yaml` or `conduit.json` in the current working directory. You can override the file path using the `CONFIG_FILE` environment variable.
+
+**Environment Variable Substitution**:
+Configuration files support variable substitution using `${VAR}` or `${VAR:-default}` syntax.
+
+**Example `conduit.yaml`**:
+
+```yaml
+port: ${PORT:-3000}
+logLevel: ${LOG_LEVEL:-info}
+maxConcurrent: 20
+resourceLimits:
+  memoryLimitMb: 512
+  timeoutMs: 60000
+
+upstreams:
+  # HTTP Upstream
+  - id: github
+    type: http # Optional, default is http
+    url: ${GITHUB_MCP_URL}
+    credentials:
+      type: oauth2
+      clientId: ${GITHUB_CLIENT_ID}
+      clientSecret: ${GITHUB_CLIENT_SECRET}
+      tokenUrl: "https://github.com/login/oauth/access_token"
+      scopes: ["repo", "user"]
+
+  # Stdio Upstream (Local Process)
+  - id: local-fs
+    type: stdio
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "/tmp"
+    env:
+      NODE_ENV: production
+```
+
+Environment variables (e.g., `PORT`) still take precedence over values defined in the configuration file if explicitly set in the process environment.
+
 Resource limits can be configured globally or overridden per request.
 
 ## License

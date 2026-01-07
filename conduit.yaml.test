@@ -1,0 +1,3 @@
+port: ${TEST_PORT:-5555}
+envTest: ${TEST_ENV}
+

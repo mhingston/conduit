@@ -1,4 +1,5 @@
 import { ResourceLimits } from '../config.service.js';
+import { UpstreamInfo } from '../../gateway/upstream.client.js';
 
 export interface AppConfig {
     port: number;
@@ -9,5 +10,6 @@ export interface AppConfig {
     ipcBearerToken: string;
     maxConcurrent: number;
     metricsUrl: string;
-    opsPort?: number; // Added explicit ops port
+    opsPort?: number;
+    upstreams?: UpstreamInfo[];
 }

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConfigService } from '../src/core/config.service.js';
+import fs from 'fs';
+import path from 'path';
 
 describe('ConfigService', () => {
     beforeEach(() => {
@@ -17,20 +19,52 @@ describe('ConfigService', () => {
         vi.stubEnv('PORT', '');
         const configService = new ConfigService();
         // Since port has a default('3000'), it should be 3000
-        // Actually, if we stub with empty string, we need to check how process.env.PORT behaves
-        // But safeParse will handle it if it's undefined
     });
 
     it('should prioritize overrides over env vars', () => {
         const configService = new ConfigService({ port: 5000 as any });
-        // Note: Overrides currently don't go through the same string-to-number transform in my implementation
-        // because I spread them onto rawConfig. 
-        // Actually, ConfigSchema.safeParse(rawConfig) SHOULD handle it.
         expect(configService.get('port')).toBe(5000);
     });
 
     it('should throw error on invalid configuration', () => {
         vi.stubEnv('NODE_ENV', 'invalid');
         expect(() => new ConfigService()).toThrow(/Invalid configuration/);
+    });
+
+    it('should substitute env vars in config file', () => {
+        const existsSpy = vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => p.endsWith('conduit.test.yaml'));
+        const readSpy = vi.spyOn(fs, 'readFileSync').mockReturnValue("port: ${TEST_PORT}\nmetricsUrl: ${TEST_URL:-http://default}");
+
+        vi.stubEnv('CONFIG_FILE', 'conduit.test.yaml');
+        vi.stubEnv('TEST_PORT', '6000');
+        vi.stubEnv('TEST_URL', 'http://overridden');
+
+        // Ensure env var doesn't override file config
+        delete process.env.PORT;
+
+        const configService = new ConfigService();
+        expect(configService.get('port')).toBe(6000);
+        expect(configService.get('metricsUrl')).toBe('http://overridden');
+
+        existsSpy.mockRestore();
+        readSpy.mockRestore();
+    });
+
+    it('should use default values in substitution', () => {
+        const existsSpy = vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => p.endsWith('conduit.test.yaml'));
+        const readSpy = vi.spyOn(fs, 'readFileSync').mockReturnValue("port: ${TEST_PORT:-7000}");
+
+        vi.stubEnv('CONFIG_FILE', 'conduit.test.yaml');
+        vi.stubEnv('TEST_PORT', '');
+        delete process.env.TEST_PORT;
+
+        // Ensure env var doesn't override file config
+        delete process.env.PORT;
+
+        const configService = new ConfigService();
+        expect(configService.get('port')).toBe(7000);
+
+        existsSpy.mockRestore();
+        readSpy.mockRestore();
     });
 });

@@ -1,14 +1,12 @@
 import { ExecutionContext } from './execution.context.js';
 import { Logger } from 'pino';
-import { DenoExecutor } from '../executors/deno.executor.js';
-import { PyodideExecutor } from '../executors/pyodide.executor.js';
-import { IsolateExecutor } from '../executors/isolate.executor.js';
+
 import { ResourceLimits } from './config.service.js';
 import { GatewayService } from '../gateway/gateway.service.js';
 import { SecurityService } from './security.service.js';
 import { metrics } from './metrics.service.js';
 import { ExecutionService } from './execution.service.js';
-import { ExecutorRegistry } from './registries/executor.registry.js';
+
 import { Middleware } from './interfaces/middleware.interface.js';
 import { LoggingMiddleware } from './middleware/logging.middleware.js';
 import { ErrorHandlingMiddleware } from './middleware/error.middleware.js';
@@ -21,37 +19,20 @@ export { ConduitError, JSONRPCRequest, JSONRPCResponse };
 
 export class RequestController {
     private logger: Logger;
-    private denoExecutor = new DenoExecutor();
-    private pyodideExecutor = new PyodideExecutor();
-    private isolateExecutor: IsolateExecutor | null = null;
     private executionService: ExecutionService;
     private gatewayService: GatewayService;
-    private executorRegistry = new ExecutorRegistry();
-    private defaultLimits: ResourceLimits;
+
     private middlewares: Middleware[] = [];
 
-    constructor(logger: Logger, defaultLimits: ResourceLimits, gatewayService: GatewayService, securityService: SecurityService) {
+    constructor(
+        logger: Logger,
+        executionService: ExecutionService,
+        gatewayService: GatewayService,
+        securityService: SecurityService // Keeps needing securityService for Middleware initialization
+    ) {
         this.logger = logger;
-        this.defaultLimits = defaultLimits;
+        this.executionService = executionService;
         this.gatewayService = gatewayService;
-
-        // Initialize executors
-        this.isolateExecutor = new IsolateExecutor(logger, gatewayService);
-
-        // Register executors
-        this.executorRegistry.register('deno', this.denoExecutor);
-        this.executorRegistry.register('python', this.pyodideExecutor);
-        if (this.isolateExecutor) {
-            this.executorRegistry.register('isolate', this.isolateExecutor);
-        }
-
-        this.executionService = new ExecutionService(
-            logger,
-            defaultLimits,
-            gatewayService,
-            securityService,
-            this.executorRegistry
-        );
 
         // Setup middleware pipeline
         this.use(new ErrorHandlingMiddleware());
@@ -64,9 +45,7 @@ export class RequestController {
         this.middlewares.push(middleware);
     }
 
-    set ipcAddress(addr: string) {
-        this.executionService.ipcAddress = addr;
-    }
+
 
     async handleRequest(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
         return this.executePipeline(request, context);
@@ -218,11 +197,11 @@ export class RequestController {
     }
 
     async shutdown() {
-        await this.executorRegistry.shutdownAll();
+        await this.executionService.shutdown();
     }
 
     async healthCheck() {
-        const pyodideHealth = await this.pyodideExecutor.healthCheck();
+        const pyodideHealth = await this.executionService.healthCheck();
         return {
             status: pyodideHealth.status === 'ok' ? 'ok' : 'error',
             pyodide: pyodideHealth
@@ -230,6 +209,6 @@ export class RequestController {
     }
 
     async warmup() {
-        await this.pyodideExecutor.warmup(this.defaultLimits);
+        await this.executionService.warmup();
     }
 }

@@ -316,4 +316,17 @@ export class DenoExecutor implements Executor {
         }
         this.activeProcesses.clear();
     }
+
+    async healthCheck(): Promise<{ status: string; detail?: string }> {
+        try {
+            const { stdout } = await execAsync('deno --version');
+            return { status: 'ok', detail: stdout.split('\n')[0] };
+        } catch (err: any) {
+            return { status: 'error', detail: err.message };
+        }
+    }
+
+    async warmup(): Promise<void> {
+        // No-op for Deno
+    }
 }

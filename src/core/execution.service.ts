@@ -166,4 +166,24 @@ export class ExecutionService {
             error: { code, message }
         };
     }
+
+    async shutdown(): Promise<void> {
+        await this.executorRegistry.shutdownAll();
+    }
+
+    async warmup(): Promise<void> {
+        const pythonExecutor = this.executorRegistry.get('python');
+        if (pythonExecutor && 'warmup' in pythonExecutor) {
+            // Cast to any because warmup is not in general Executor interface yet
+            await (pythonExecutor as any).warmup(this.defaultLimits);
+        }
+    }
+
+    async healthCheck(): Promise<any> {
+        const pythonExecutor = this.executorRegistry.get('python');
+        if (pythonExecutor && 'healthCheck' in pythonExecutor) {
+            return (pythonExecutor as any).healthCheck();
+        }
+        return { status: 'ok' };
+    }
 }

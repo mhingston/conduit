@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OpsServer } from '../src/core/ops.server.js';
 import { ConfigService } from '../src/core/config.service.js';
 import { GatewayService } from '../src/gateway/gateway.service.js';
 import { SecurityService } from '../src/core/security.service.js';
 import { RequestController } from '../src/core/request.controller.js';
+import { ExecutionService } from '../src/core/execution.service.js';
+import { ExecutorRegistry } from '../src/core/registries/executor.registry.js';
 import pino from 'pino';
 
 const logger = pino({ level: 'silent' });
@@ -17,8 +19,18 @@ describe('OpsServer', () => {
         configService = new ConfigService({ port: 3000 as any });
         const securityService = new SecurityService(logger, 'test-token');
         gatewayService = new GatewayService(logger, securityService);
-        const requestController = new RequestController(logger, configService.get('resourceLimits'), gatewayService, securityService);
-        opsServer = new OpsServer(logger, configService, gatewayService, requestController);
+        const executorRegistry = new ExecutorRegistry();
+        executorRegistry.register('python', { healthCheck: vi.fn().mockResolvedValue({ status: 'ok' }) } as any);
+
+        const executionService = new ExecutionService(
+            logger,
+            configService.get('resourceLimits'),
+            gatewayService,
+            securityService,
+            executorRegistry
+        );
+        const requestController = new RequestController(logger, executionService, gatewayService, securityService);
+        opsServer = new OpsServer(logger, configService.all, gatewayService, requestController);
     });
 
     afterEach(async () => {

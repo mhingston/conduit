@@ -46,13 +46,22 @@ export class IsolateExecutor implements Executor {
             let currentErrorBytes = 0;
 
             // Inject console.log/error for output capture
+            // Inject console.log/error for output capture
             await jail.set('__log', new ivm.Callback((msg: string) => {
+                if (currentLogBytes + msg.length + 1 > limits.maxOutputBytes) {
+                    // Check log entry count limit? We don't track count here yet effectively, but bytes is safer.
+                    // The interface says maxOutputBytes applies to total output.
+                    throw new Error('[LIMIT_LOG]');
+                }
                 if (currentLogBytes < limits.maxOutputBytes) {
                     logs.push(msg);
                     currentLogBytes += msg.length + 1; // +1 for newline approximation
                 }
             }));
             await jail.set('__error', new ivm.Callback((msg: string) => {
+                if (currentErrorBytes + msg.length + 1 > limits.maxOutputBytes) {
+                    throw new Error('[LIMIT_OUTPUT]');
+                }
                 if (currentErrorBytes < limits.maxOutputBytes) {
                     errors.push(msg);
                     currentErrorBytes += msg.length + 1;
@@ -245,5 +254,23 @@ export class IsolateExecutor implements Executor {
                 isolate.dispose();
             }
         }
+    }
+
+    async shutdown(): Promise<void> {
+        // No-op
+    }
+
+    async healthCheck(): Promise<{ status: string; detail?: string }> {
+        try {
+            const isolate = new ivm.Isolate({ memoryLimit: 8 });
+            isolate.dispose();
+            return { status: 'ok' };
+        } catch (err: any) {
+            return { status: 'error', detail: err.message };
+        }
+    }
+
+    async warmup(): Promise<void> {
+        // No-op
     }
 }

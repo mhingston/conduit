@@ -6,6 +6,11 @@ import { SecurityService } from '../src/core/security.service.js';
 import { ConcurrencyService } from '../src/core/concurrency.service.js';
 import pino from 'pino';
 import { ExecutionContext } from '../src/core/execution.context.js';
+import { ExecutionService } from '../src/core/execution.service.js';
+import { ExecutorRegistry } from '../src/core/registries/executor.registry.js';
+import { DenoExecutor } from '../src/executors/deno.executor.js';
+import { PyodideExecutor } from '../src/executors/pyodide.executor.js';
+import { IsolateExecutor } from '../src/executors/isolate.executor.js';
 import fs from 'node:fs';
 
 const logger = pino({ level: 'silent' });
@@ -47,12 +52,28 @@ describe('Dynamic Tool Calling (E2E)', () => {
         });
 
         concurrencyService = new ConcurrencyService(logger, { maxConcurrent: 10 });
-        requestController = new RequestController(logger, defaultLimits, gatewayService, securityService);
+
+        const executorRegistry = new ExecutorRegistry();
+        executorRegistry.register('deno', new DenoExecutor());
+        executorRegistry.register('python', new PyodideExecutor());
+        // For isolate test, we need IsolateExecutor. 
+        // It requires GatewayService.
+        executorRegistry.register('isolate', new IsolateExecutor(logger, gatewayService));
+
+        const executionService = new ExecutionService(
+            logger,
+            defaultLimits,
+            gatewayService,
+            securityService,
+            executorRegistry
+        );
+
+        requestController = new RequestController(logger, executionService, gatewayService, securityService);
         transport = new SocketTransport(logger, requestController, concurrencyService);
 
         ipcAddress = await transport.listen({ port: 0, host: '127.0.0.1' });
         fs.appendFileSync(LOG_FILE, `IPC_ADDRESS: ${ipcAddress}\n`);
-        requestController.ipcAddress = ipcAddress;
+        executionService.ipcAddress = ipcAddress;
     });
 
     afterAll(async () => {

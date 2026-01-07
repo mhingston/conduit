@@ -4,6 +4,8 @@ import { SocketTransport } from '../src/transport/socket.transport.js';
 import { RequestController } from '../src/core/request.controller.js';
 import { SecurityService } from '../src/core/security.service.js';
 import { ConcurrencyService } from '../src/core/concurrency.service.js';
+import { ExecutionService } from '../src/core/execution.service.js';
+import { ExecutorRegistry } from '../src/core/registries/executor.registry.js';
 import { pino } from 'pino';
 import net from 'net';
 import os from 'os';
@@ -16,6 +18,7 @@ describe('V1 Hardening Tests', () => {
     let securityService: SecurityService;
     let requestController: RequestController;
     let socketPath: string;
+    let mockDenoExecutor: any;
 
     beforeEach(async () => {
         const ipcToken = 'master-token';
@@ -29,8 +32,27 @@ describe('V1 Hardening Tests', () => {
 
         const defaultLimits = { timeoutMs: 1000, memoryLimitMb: 128, maxOutputBytes: 1024, maxLogEntries: 5 }; // Low log limit
 
-        requestController = new RequestController(logger, defaultLimits, gatewayService, securityService);
-        requestController['denoExecutor'].execute = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+        const executorRegistry = new ExecutorRegistry();
+
+        // Mock DenoExecutor
+        mockDenoExecutor = {
+            execute: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 })
+        };
+        executorRegistry.register('deno', mockDenoExecutor as any);
+
+        const executionService = new ExecutionService(
+            logger,
+            defaultLimits,
+            gatewayService,
+            securityService,
+            executorRegistry
+        );
+        // Ensure executionService has required methods for RequestController healthCheck/warmup delegation
+        vi.spyOn(executionService, 'shutdown').mockResolvedValue();
+        vi.spyOn(executionService, 'warmup').mockResolvedValue();
+        vi.spyOn(executionService, 'healthCheck').mockResolvedValue({ status: 'ok' });
+
+        requestController = new RequestController(logger, executionService, gatewayService, securityService);
 
         transport = new SocketTransport(logger, requestController, concurrencyService);
 
@@ -108,11 +130,6 @@ describe('V1 Hardening Tests', () => {
 
         // It should call the executor (which we mocked above to success)
         expect(response.error).toBeUndefined();
-        expect(requestController['denoExecutor'].execute).toHaveBeenCalled();
+        expect(mockDenoExecutor.execute).toHaveBeenCalled();
     });
-
-    // Verification for Task 4 (Log Limit Error Code)
-    // Note: We need the REAL Deno executor to verify the error code from actual execution result, 
-    // but running Deno in test might be slow.
-    // However, we implemented the logic in `deno.executor.ts`, so we can test the executor class directly.
 });

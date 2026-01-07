@@ -26,4 +26,6 @@ export interface Executor {
     ): Promise<ExecutionResult>;
 
     shutdown?(): Promise<void>;
+    healthCheck?(): Promise<{ status: string; workers?: number; detail?: string }>;
+    warmup?(limits?: ResourceLimits): Promise<void>;
 }

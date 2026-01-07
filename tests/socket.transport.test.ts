@@ -6,6 +6,9 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { SecurityService } from '../src/core/security.service.js';
+import { ExecutionService } from '../src/core/execution.service.js';
+import { ExecutorRegistry } from '../src/core/registries/executor.registry.js';
+
 import fs from 'node:fs';
 
 const logger = pino({ level: 'silent' });
@@ -33,7 +36,42 @@ describe('SocketTransport', () => {
         concurrencyService = {
             run: vi.fn().mockImplementation((fn) => fn()),
         } as any;
-        requestController = new RequestController(logger, defaultLimits, gatewayService, securityService);
+        concurrencyService = {
+            run: vi.fn().mockImplementation((fn) => fn()),
+        } as any;
+
+        const executorRegistry = new ExecutorRegistry();
+        // Use real DenoExecutor for this E2E-like test
+        // But DenoExecutor initialization might be heavy? Whatever, it creates temp dir.
+        // Or we can mock it to return expected stdout.
+        // Let's use real one to match previous behavior.
+
+        // Since we are mocking Deno call in test via 'executeTypeScript', maybe we should mock DenoExecutor execution?
+        // But the test sends 'console.log...'.
+        // If we mock DenoExecutor, we can make it return 'hello E2E'.
+        // That's faster and safer.
+        const mockDenoExecutor = {
+            execute: vi.fn().mockImplementation(async (code) => {
+                // Simple mock that echoes input logic if needed, or just returns static because test sends specific string
+                if (code.includes('hello E2E')) return { stdout: 'hello E2E', stderr: '', exitCode: 0 };
+                if (code.includes('hello')) return { stdout: 'hello', stderr: '', exitCode: 0 }; // for server busy test
+                return { stdout: '', stderr: '', exitCode: 0 };
+            }),
+            shutdown: vi.fn(),
+            healthCheck: vi.fn(),
+            warmup: vi.fn()
+        };
+        executorRegistry.register('deno', mockDenoExecutor as any);
+
+        const executionService = new ExecutionService(
+            logger,
+            defaultLimits,
+            gatewayService,
+            securityService,
+            executorRegistry
+        );
+
+        requestController = new RequestController(logger, executionService, gatewayService, securityService);
     });
 
     afterEach(async () => {
