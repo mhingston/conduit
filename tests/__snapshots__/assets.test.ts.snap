@@ -1,0 +1,97 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Asset Integrity (Golden Tests) > should match Isolate SDK snapshot 1`] = `
+"// Generated SDK for isolated-vm
+const __allowedTools = ["test__*","github__*"];
+const tools = {
+  test: {
+    async hello(args) {
+      const resStr = await __callTool("test__hello", JSON.stringify(args || {}));
+      return JSON.parse(resStr);
+    },
+  },
+  github: {
+    async create_issue(args) {
+      const resStr = await __callTool("github__create_issue", JSON.stringify(args || {}));
+      return JSON.parse(resStr);
+    },
+  },
+  async $raw(name, args) {
+    const normalized = name.replace('.', '__');
+    if (__allowedTools) {
+      const allowed = __allowedTools.some(p => {
+        if (p.endsWith('__*')) return normalized.startsWith(p.slice(0, -1));
+        return normalized === p;
+      });
+      if (!allowed) throw new Error(\`Tool \${name} is not in the allowlist\`);
+    }
+    const resStr = await __callTool(normalized, JSON.stringify(args || {}));
+    return JSON.parse(resStr);
+  },
+};"
+`;
+
+exports[`Asset Integrity (Golden Tests) > should match Python SDK snapshot 1`] = `
+"# Generated SDK - Do not edit
+_allowed_tools = ["test__*","github__*"]
+
+class _ToolNamespace:
+    def __init__(self, methods):
+        for name, fn in methods.items():
+            setattr(self, name, fn)
+
+class _Tools:
+    def __init__(self):
+        self.test = _ToolNamespace({
+            "hello": lambda args, n="test__hello": _internal_call_tool(n, args)
+        })
+        self.github = _ToolNamespace({
+            "create_issue": lambda args, n="github__create_issue": _internal_call_tool(n, args)
+        })
+
+    async def raw(self, name, args):
+        """Call a tool by its full name (escape hatch for dynamic/unknown tools)"""
+        normalized = name.replace(".", "__")
+        if _allowed_tools is not None:
+            allowed = any(
+                normalized.startswith(p[:-1]) if p.endswith("__*") else normalized == p
+                for p in _allowed_tools
+            )
+            if not allowed:
+                raise PermissionError(f"Tool {name} is not in the allowlist")
+        return await _internal_call_tool(normalized, args)
+
+tools = _Tools()"
+`;
+
+exports[`Asset Integrity (Golden Tests) > should match TypeScript SDK snapshot 1`] = `
+"// Generated SDK - Do not edit
+const __allowedTools = ["test__*","github__*"];
+const tools = {
+  test: {
+    /** Returns a greeting */
+    async hello(args) {
+      return await __internalCallTool("test__hello", args);
+    },
+  },
+  github: {
+    /** Creates a GitHub issue */
+    async create_issue(args) {
+      return await __internalCallTool("github__create_issue", args);
+    },
+  },
+  /** Call a tool by its full name (escape hatch for dynamic/unknown tools) */
+  async $raw(name, args) {
+    const normalized = name.replace('.', '__');
+    if (__allowedTools) {
+      const allowed = __allowedTools.some(p => {
+        if (p.endsWith('__*')) return normalized.startsWith(p.slice(0, -1));
+        return normalized === p;
+      });
+      if (!allowed) throw new Error(\`Tool \${name} is not in the allowlist\`);
+    }
+    return await __internalCallTool(normalized, args);
+  },
+};
+(globalThis as any).tools = tools;"
+`;
