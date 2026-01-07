@@ -1,10 +1,11 @@
 import { Logger } from 'pino';
 import { NetworkPolicyService } from './network.policy.service.js';
 import { SessionManager, Session } from './session.manager.js';
+import { IUrlValidator } from './interfaces/url.validator.interface.js';
 
 export { Session };
 
-export class SecurityService {
+export class SecurityService implements IUrlValidator {
     private logger: Logger;
     private ipcToken: string;
     private networkPolicy: NetworkPolicyService;

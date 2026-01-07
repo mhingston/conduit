@@ -5,6 +5,7 @@ export interface ExecutionContextOptions {
     tenantId?: string;
     logger: Logger;
     allowedTools?: string[];
+    remoteAddress?: string;
 }
 
 export class ExecutionContext {
@@ -13,12 +14,14 @@ export class ExecutionContext {
     public readonly tenantId?: string;
     public logger: Logger;
     public allowedTools?: string[];
+    public readonly remoteAddress?: string;
 
     constructor(options: ExecutionContextOptions) {
         this.correlationId = uuidv4();
         this.startTime = Date.now();
         this.tenantId = options.tenantId;
         this.allowedTools = options.allowedTools;
+        this.remoteAddress = options.remoteAddress;
         this.logger = options.logger.child({
             correlationId: this.correlationId,
             tenantId: this.tenantId,

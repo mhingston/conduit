@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ExecutionContext } from '../core/execution.context.js';
 import { ResourceLimits as ConduitResourceLimits } from '../core/config.service.js';
-import { ConduitError } from '../core/request.controller.js';
+import { ConduitError } from '../core/types.js';
 import { resolveAssetPath } from '../core/asset.utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

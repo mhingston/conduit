@@ -1,5 +1,5 @@
 import { Middleware, NextFunction } from '../interfaces/middleware.interface.js';
-import { JSONRPCRequest, JSONRPCResponse, ConduitError } from '../request.controller.js';
+import { JSONRPCRequest, JSONRPCResponse, ConduitError } from '../types.js';
 import { ExecutionContext } from '../execution.context.js';
 
 export class ErrorHandlingMiddleware implements Middleware {

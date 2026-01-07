@@ -32,7 +32,7 @@ describe('V1 Hardening Tests', () => {
         requestController = new RequestController(logger, defaultLimits, gatewayService, securityService);
         requestController['denoExecutor'].execute = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
 
-        transport = new SocketTransport(logger, requestController, securityService, concurrencyService);
+        transport = new SocketTransport(logger, requestController, concurrencyService);
 
         socketPath = path.join(os.tmpdir(), `conduit-test-${Math.random().toString(36).substring(7)}.sock`);
         if (os.platform() === 'win32') {

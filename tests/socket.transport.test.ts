@@ -43,7 +43,7 @@ describe('SocketTransport', () => {
     });
 
     it('should listen on a TCP port in development mode', async () => {
-        transport = new SocketTransport(logger, requestController, securityService, concurrencyService);
+        transport = new SocketTransport(logger, requestController, concurrencyService);
         const address = await transport.listen({ port: 0 }); // Random port
         expect(address).toMatch(/127\.0\.0\.1:\d+|:::\d+|0\.0\.0\.0:\d+/);
     });
@@ -51,7 +51,7 @@ describe('SocketTransport', () => {
     if (os.platform() !== 'win32') {
         it('should listen on a Unix socket', async () => {
             const socketPath = path.join(os.tmpdir(), `conduit-test-${Date.now()}.sock`);
-            transport = new SocketTransport(logger, requestController, securityService, concurrencyService);
+            transport = new SocketTransport(logger, requestController, concurrencyService);
             const address = await transport.listen({ path: socketPath });
             expect(address).toBe(socketPath);
             expect(fs.existsSync(socketPath)).toBe(true);
@@ -62,7 +62,7 @@ describe('SocketTransport', () => {
     }
 
     it('should handle mcp.executeTypeScript request', async () => {
-        transport = new SocketTransport(logger, requestController, securityService, concurrencyService);
+        transport = new SocketTransport(logger, requestController, concurrencyService);
         const address = await transport.listen({ port: 0 });
         const portMatch = address.match(/:(\d+)$/);
         const port = portMatch ? parseInt(portMatch[1]) : 0;
@@ -103,7 +103,7 @@ describe('SocketTransport', () => {
         queueFullError.name = 'QueueFullError';
         concurrencyService.run.mockRejectedValue(queueFullError);
 
-        transport = new SocketTransport(logger, requestController, securityService, concurrencyService);
+        transport = new SocketTransport(logger, requestController, concurrencyService);
         const address = await transport.listen({ port: 0 });
         const portMatch = address.match(/:(\d+)$/);
         const port = portMatch ? parseInt(portMatch[1]) : 0;

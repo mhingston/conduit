@@ -3,7 +3,7 @@ import { Logger } from 'pino';
 import { ExecutionContext } from '../core/execution.context.js';
 import { ResourceLimits } from '../core/config.service.js';
 import { GatewayService } from '../gateway/gateway.service.js';
-import { ConduitError } from '../core/request.controller.js';
+import { ConduitError } from '../core/types.js';
 
 import { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
 

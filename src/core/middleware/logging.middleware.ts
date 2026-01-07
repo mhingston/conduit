@@ -1,5 +1,5 @@
 import { Middleware, NextFunction } from '../interfaces/middleware.interface.js';
-import { JSONRPCRequest, JSONRPCResponse } from '../request.controller.js';
+import { JSONRPCRequest, JSONRPCResponse } from '../types.js';
 import { ExecutionContext } from '../execution.context.js';
 import { metrics } from '../metrics.service.js';
 

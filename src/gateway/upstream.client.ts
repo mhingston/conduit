@@ -1,9 +1,9 @@
 import { Logger } from 'pino';
 import axios from 'axios';
-import { JSONRPCRequest, JSONRPCResponse } from '../core/request.controller.js';
+import { JSONRPCRequest, JSONRPCResponse } from '../core/types.js';
 import { AuthService, UpstreamCredentials } from './auth.service.js';
 import { ExecutionContext } from '../core/execution.context.js';
-import { SecurityService } from '../core/security.service.js';
+import { IUrlValidator } from '../core/interfaces/url.validator.interface.js';
 
 export interface UpstreamInfo {
     id: string;
@@ -15,13 +15,13 @@ export class UpstreamClient {
     private logger: Logger;
     private info: UpstreamInfo;
     private authService: AuthService;
-    private securityService: SecurityService;
+    private urlValidator: IUrlValidator;
 
-    constructor(logger: Logger, info: UpstreamInfo, authService: AuthService, securityService: SecurityService) {
+    constructor(logger: Logger, info: UpstreamInfo, authService: AuthService, urlValidator: IUrlValidator) {
         this.logger = logger.child({ upstreamId: info.id });
         this.info = info;
         this.authService = authService;
-        this.securityService = securityService;
+        this.urlValidator = urlValidator;
     }
 
     async call(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
@@ -39,7 +39,7 @@ export class UpstreamClient {
             Object.assign(headers, authHeaders);
         }
 
-        const securityResult = await this.securityService.validateUrl(this.info.url);
+        const securityResult = await this.urlValidator.validateUrl(this.info.url);
         if (!securityResult.valid) {
             this.logger.error({ url: this.info.url }, 'Blocked upstream URL (SSRF)');
             return {

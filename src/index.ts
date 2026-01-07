@@ -35,7 +35,7 @@ async function main() {
             maxConcurrent: configService.get('maxConcurrent')
         });
 
-        const transport = new SocketTransport(logger, requestController, securityService, concurrencyService);
+        const transport = new SocketTransport(logger, requestController, concurrencyService);
         const port = configService.get('port');
         const address = await transport.listen({ port });
         requestController.ipcAddress = address;

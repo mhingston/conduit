@@ -48,7 +48,7 @@ describe('Dynamic Tool Calling (E2E)', () => {
 
         concurrencyService = new ConcurrencyService(logger, { maxConcurrent: 10 });
         requestController = new RequestController(logger, defaultLimits, gatewayService, securityService);
-        transport = new SocketTransport(logger, requestController, securityService, concurrencyService);
+        transport = new SocketTransport(logger, requestController, concurrencyService);
 
         ipcAddress = await transport.listen({ port: 0, host: '127.0.0.1' });
         fs.appendFileSync(LOG_FILE, `IPC_ADDRESS: ${ipcAddress}\n`);

@@ -34,6 +34,10 @@ describe('RequestController Routing', () => {
             validateCode: vi.fn().mockReturnValue({ valid: true }),
             createSession: vi.fn().mockReturnValue('token'),
             invalidateSession: vi.fn(),
+            getIpcToken: vi.fn().mockReturnValue('master-token'),
+            validateIpcToken: vi.fn().mockReturnValue(true),
+            getSession: vi.fn(),
+            checkRateLimit: vi.fn().mockReturnValue(true),
         };
         mockSdkGenerator = {
             generateTypeScript: vi.fn().mockReturnValue('sdk'),
@@ -54,7 +58,7 @@ describe('RequestController Routing', () => {
                     /^\s*export\s/m.test(bashedCode) ||
                     /\bDeno\./.test(bashedCode) ||
                     /\bDeno\b/.test(bashedCode);
-                
+
                 if (!hasImports) {
                     await mockIsolateExecutor.execute();
                     return { stdout: 'isolate', stderr: '', exitCode: 0 };
@@ -81,7 +85,8 @@ describe('RequestController Routing', () => {
             params: {
                 code: 'console.log("simple")',
                 limits: {}
-            }
+            },
+            auth: { bearerToken: 'master-token' }
         }, mockContext);
 
         expect(mockIsolateExecutor.execute).toHaveBeenCalled();
@@ -97,7 +102,8 @@ describe('RequestController Routing', () => {
             params: {
                 code: 'import { foo } from "bar"; console.log(foo)',
                 limits: {}
-            }
+            },
+            auth: { bearerToken: 'master-token' }
         }, mockContext);
 
         expect(mockDenoExecutor.execute).toHaveBeenCalled();
@@ -113,7 +119,8 @@ describe('RequestController Routing', () => {
             params: {
                 code: 'export const foo = "bar"',
                 limits: {}
-            }
+            },
+            auth: { bearerToken: 'master-token' }
         }, mockContext);
 
         expect(mockDenoExecutor.execute).toHaveBeenCalled();
@@ -128,7 +135,8 @@ describe('RequestController Routing', () => {
             params: {
                 code: 'console.log(Deno.version)',
                 limits: {}
-            }
+            },
+            auth: { bearerToken: 'master-token' }
         }, mockContext);
 
         expect(mockDenoExecutor.execute).toHaveBeenCalled();

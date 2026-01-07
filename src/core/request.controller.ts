@@ -12,37 +12,12 @@ import { ExecutorRegistry } from './registries/executor.registry.js';
 import { Middleware } from './interfaces/middleware.interface.js';
 import { LoggingMiddleware } from './middleware/logging.middleware.js';
 import { ErrorHandlingMiddleware } from './middleware/error.middleware.js';
+import { AuthMiddleware } from './middleware/auth.middleware.js';
+import { RateLimitMiddleware } from './middleware/ratelimit.middleware.js';
 
-export enum ConduitError {
-    InternalError = -32603,
-    RequestTimeout = -32008,
-    Forbidden = -32003,
-    OutputLimitExceeded = -32013,
-    MemoryLimitExceeded = -32009,
-    LogLimitExceeded = -32014,
-    ServerBusy = -32000,
-}
+import { ConduitError, JSONRPCRequest, JSONRPCResponse } from './types.js';
 
-export interface JSONRPCRequest {
-    jsonrpc: '2.0';
-    id: string | number;
-    method: string;
-    params?: any;
-    auth?: {
-        bearerToken: string;
-    };
-}
-
-export interface JSONRPCResponse {
-    jsonrpc: '2.0';
-    id: string | number;
-    result?: any;
-    error?: {
-        code: number;
-        message: string;
-        data?: any;
-    };
-}
+export { ConduitError, JSONRPCRequest, JSONRPCResponse };
 
 export class RequestController {
     private logger: Logger;
@@ -81,6 +56,8 @@ export class RequestController {
         // Setup middleware pipeline
         this.use(new ErrorHandlingMiddleware());
         this.use(new LoggingMiddleware());
+        this.use(new AuthMiddleware(securityService));
+        this.use(new RateLimitMiddleware(securityService));
     }
 
     use(middleware: Middleware) {

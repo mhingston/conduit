@@ -5,7 +5,7 @@ import { GatewayService } from '../gateway/gateway.service.js';
 import { SecurityService } from './security.service.js';
 import { SDKGenerator, toToolBinding } from '../sdk/index.js';
 import { ExecutionContext } from './execution.context.js';
-import { ConduitError } from './request.controller.js';
+import { ConduitError } from './types.js';
 import { ExecutionResult } from './interfaces/executor.interface.js';
 
 export { ExecutionResult };
