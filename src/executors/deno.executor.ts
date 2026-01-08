@@ -289,17 +289,23 @@ export class DenoExecutor implements Executor {
                 });
             });
 
-            child.on('error', (err) => {
+            child.on('error', (err: any) => {
                 clearTimeout(timeout);
                 logger.error({ err }, 'Child process error');
                 cleanupProcess();
+
+                let message = err.message;
+                if (err.code === 'ENOENT') {
+                    message = 'Deno executable not found in PATH. Please ensure Deno is installed.';
+                }
+
                 resolve({
                     stdout,
                     stderr,
                     exitCode: null,
                     error: {
                         code: ConduitError.InternalError,
-                        message: err.message,
+                        message: message,
                     },
                 });
             });
