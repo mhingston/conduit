@@ -87,21 +87,39 @@ export class UpstreamClient {
         }
 
         try {
-            await this.ensureConnected(); // simple connect check
+            await this.ensureConnected();
 
-            // The SDK's client.request returns the RESULT, not the full response object.
-            // And it throws on error.
-            const result = await this.mcpClient.request(
-                { method: request.method, params: request.params },
-                // Schema validator is optional, we skip it for generic proxying by using z.any()
-                z.any()
-            );
-
-            return {
-                jsonrpc: '2.0',
-                id: request.id,
-                result: result
-            };
+            // Map GatewayService method names to SDK typed methods
+            if (request.method === 'list_tools') {
+                const result = await this.mcpClient.listTools();
+                return {
+                    jsonrpc: '2.0',
+                    id: request.id,
+                    result: result
+                };
+            } else if (request.method === 'call_tool') {
+                const params = request.params as { name: string; arguments?: Record<string, unknown> };
+                const result = await this.mcpClient.callTool({
+                    name: params.name,
+                    arguments: params.arguments,
+                });
+                return {
+                    jsonrpc: '2.0',
+                    id: request.id,
+                    result: result
+                };
+            } else {
+                // Fallback to generic request for other methods
+                const result = await this.mcpClient.request(
+                    { method: request.method, params: request.params },
+                    z.any()
+                );
+                return {
+                    jsonrpc: '2.0',
+                    id: request.id,
+                    result: result
+                };
+            }
         } catch (error: any) {
             this.logger.error({ err: error }, 'Stdio call failed');
             return {
