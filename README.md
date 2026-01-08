@@ -175,6 +175,21 @@ By default, Conduit runs in **Permissive Mode** to allow easy exploration.
 - permissive mode for exploration
 - strict mode for production agents
 
+## Code Mode Prompting Guide
+
+To get the most out of Conduit, you should guide your LLM (agent) to prefer multi-tool scripts over individual tool calls.
+
+**Recommended System Prompt Additions:**
+> You are equipped with a "Code Mode" execution environment via Conduit.
+>
+> - **Prefer `mcp.executeTypeScript`**: Use this for any task requiring multiple steps, data transformation, or logical branching.
+> - **Use `tools.*` SDK**: Within your scripts, access all upstream tools via the `tools` namespace (e.g., `await tools.github.create_issue(...)`).
+> - **Avoid JSON tool-calling overhead**: Instead of making 5 separate tool calls and waiting for 5 round-trips, write one script that orchestrates the entire operation.
+> - **Data Transformation**: Perform loops, filters, and aggregations directly in your code rather than asking the user (or yourself) to process large datasets in the chat context.
+
+Example of a high-efficiency prompt:
+*"Scan the last 50 emails for invoices, total their amounts by currency, and create a single summary ticket in Jira if the total exceeds $1000."*
+
 ---
 
 ## Design Principles

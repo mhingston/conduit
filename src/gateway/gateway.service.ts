@@ -10,6 +10,66 @@ import { PolicyService, ToolIdentifier } from '../core/policy.service.js';
 import { Ajv } from 'ajv';
 import addFormats from 'ajv-formats';
 
+const BUILT_IN_TOOLS: ToolSchema[] = [
+    {
+        name: 'mcp.executeTypeScript',
+        description: 'Executes TypeScript code in a secure sandbox with access to `tools.*` SDK.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                code: {
+                    type: 'string',
+                    description: 'The TypeScript code to execute.'
+                },
+                allowedTools: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Optional list of tools the script is allowed to call (e.g. ["github.*"]).'
+                }
+            },
+            required: ['code']
+        }
+    },
+    {
+        name: 'mcp.executePython',
+        description: 'Executes Python code in a secure sandbox with access to `tools.*` SDK.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                code: {
+                    type: 'string',
+                    description: 'The Python code to execute.'
+                },
+                allowedTools: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Optional list of tools the script is allowed to call (e.g. ["github.*"]).'
+                }
+            },
+            required: ['code']
+        }
+    },
+    {
+        name: 'mcp.executeIsolate',
+        description: 'Executes JavaScript code in a high-speed V8 isolate (no Deno/Node APIs).',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                code: {
+                    type: 'string',
+                    description: 'The JavaScript code to execute.'
+                },
+                allowedTools: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Optional list of tools the script is allowed to call.'
+                }
+            },
+            required: ['code']
+        }
+    }
+];
+
 export class GatewayService {
     private logger: Logger;
     private clients: Map<string, UpstreamClient> = new Map();
@@ -110,8 +170,13 @@ export class GatewayService {
         }
 
         const parsed = this.policyService.parseToolName(toolId);
+        const toolName = parsed.name; // Use a new variable for the un-namespaced name
+
+        // Check for built-in tools
+        const builtIn = BUILT_IN_TOOLS.find(t => t.name === toolId); // Compare with the full toolId
+        if (builtIn) return builtIn;
+
         const upstreamId = parsed.namespace;
-        const toolName = parsed.name;
 
         // Ensure we have schemas for this upstream
         if (!this.schemaCache.get(upstreamId)) {
@@ -132,7 +197,7 @@ export class GatewayService {
     }
 
     async discoverTools(context: ExecutionContext): Promise<ToolSchema[]> {
-        const allTools: ToolSchema[] = [];
+        const allTools: ToolSchema[] = [...BUILT_IN_TOOLS];
 
         for (const [id, client] of this.clients.entries()) {
             let tools = this.schemaCache.get(id);
