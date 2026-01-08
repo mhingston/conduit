@@ -4,6 +4,9 @@
   "type": "module",
   "description": "A secure Code Mode execution substrate for MCP agents",
   "main": "index.js",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
