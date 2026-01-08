@@ -14,26 +14,20 @@ async function init() {
 
     pyodide = await loadPyodide({
         stdout: (text) => {
+            if (currentLimits && (totalOutputBytes > (currentLimits.maxOutputBytes || 1024 * 1024) || totalLogEntries > (currentLimits.maxLogEntries || 10000))) {
+                return; // Stop processing logs once limit breached
+            }
             currentStdout += text + '\n';
             totalOutputBytes += text.length + 1;
             totalLogEntries++;
-            if (currentLimits && totalOutputBytes > (currentLimits.maxOutputBytes || 1024 * 1024)) {
-                throw new Error('[LIMIT_OUTPUT]');
-            }
-            if (currentLimits && totalLogEntries > (currentLimits.maxLogEntries || 10000)) {
-                throw new Error('[LIMIT_LOG]');
-            }
         },
         stderr: (text) => {
+            if (currentLimits && (totalOutputBytes > (currentLimits.maxOutputBytes || 1024 * 1024) || totalLogEntries > (currentLimits.maxLogEntries || 10000))) {
+                return; // Stop processing logs once limit breached
+            }
             currentStderr += text + '\n';
             totalOutputBytes += text.length + 1;
             totalLogEntries++;
-            if (currentLimits && totalOutputBytes > (currentLimits.maxOutputBytes || 1024 * 1024)) {
-                throw new Error('[LIMIT_OUTPUT]');
-            }
-            if (currentLimits && totalLogEntries > (currentLimits.maxLogEntries || 10000)) {
-                throw new Error('[LIMIT_LOG]');
-            }
         },
     });
 

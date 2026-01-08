@@ -35,7 +35,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Rebuild native modules
-        run: pnpm rebuild isolated-vm
+        run: pnpm rebuild --recursive
+
+      - name: Build diagnostics
+        run: |
+            echo "Checking isolated-vm build artifacts..."
+            ls -R node_modules/isolated-vm/out || echo "isolated_vm/out not found"
+            ls -R node_modules/.pnpm/isolated-vm@*/node_modules/isolated-vm/out || echo "pnpm isolated_vm/out not found"
       
       - name: Run tests
         run: pnpm test
