@@ -2,6 +2,7 @@ import { Logger } from 'pino';
 import { NetworkPolicyService } from './network.policy.service.js';
 import { SessionManager, Session } from './session.manager.js';
 import { IUrlValidator } from './interfaces/url.validator.interface.js';
+import crypto from 'node:crypto';
 
 export { Session };
 
@@ -19,12 +20,16 @@ export class SecurityService implements IUrlValidator {
     }
 
     validateCode(code: string): { valid: boolean; message?: string } {
-        // Regex-based validation is insufficient and provides a false sense of security.
-        // We rely on runtime sandboxing (Deno permissions, Isolate context) instead.
+        // [IMPORTANT] This is a SANITY CHECK only.
+        // We rely on RUNTIME isolation (Deno permissions, Isolate context) for actual security.
+        // Static analysis of code is fundamentally unable to prevent all sandbox escapes.
+        if (!code || code.length > 1024 * 1024) { // 1MB limit for sanity
+            return { valid: false, message: 'Code size exceeds limit or is empty' };
+        }
         return { valid: true };
     }
 
-    async validateUrl(url: string): Promise<{ valid: boolean; message?: string }> {
+    async validateUrl(url: string): Promise<{ valid: boolean; message?: string; resolvedIp?: string }> {
         return this.networkPolicy.validateUrl(url);
     }
 
@@ -33,7 +38,15 @@ export class SecurityService implements IUrlValidator {
     }
 
     validateIpcToken(token: string): boolean {
-        return token === this.ipcToken || !!this.sessionManager.getSession(token);
+        // Fix Sev1: Use timing-safe comparison for sensitive tokens
+        const expected = Buffer.from(this.ipcToken);
+        const actual = Buffer.from(token);
+
+        if (expected.length === actual.length && crypto.timingSafeEqual(expected, actual)) {
+            return true;
+        }
+
+        return !!this.sessionManager.getSession(token);
     }
 
     createSession(allowedTools?: string[]): string {

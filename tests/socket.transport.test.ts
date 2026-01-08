@@ -8,6 +8,7 @@ import path from 'node:path';
 import { SecurityService } from '../src/core/security.service.js';
 import { ExecutionService } from '../src/core/execution.service.js';
 import { ExecutorRegistry } from '../src/core/registries/executor.registry.js';
+import { buildDefaultMiddleware } from '../src/core/middleware/middleware.builder.js';
 
 import fs from 'node:fs';
 
@@ -29,8 +30,10 @@ describe('SocketTransport', () => {
 
     beforeEach(() => {
         gatewayService = {
-            discoverTools: vi.fn().mockResolvedValue([]),  // Return empty array for SDK generation
+            discoverTools: vi.fn().mockResolvedValue([]), // Return empty array for SDK generation
             callTool: vi.fn(),
+            listToolPackages: vi.fn().mockResolvedValue([]),
+            listToolStubs: vi.fn().mockResolvedValue([])
         } as any;
         securityService = new SecurityService(logger, testToken);
         concurrencyService = {
@@ -70,8 +73,9 @@ describe('SocketTransport', () => {
             securityService,
             executorRegistry
         );
+        executionService.ipcAddress = '127.0.0.1:0'; // Dummy address for tests
 
-        requestController = new RequestController(logger, executionService, gatewayService, securityService);
+        requestController = new RequestController(logger, executionService, gatewayService, buildDefaultMiddleware(securityService));
     });
 
     afterEach(async () => {

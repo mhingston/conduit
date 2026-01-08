@@ -1,6 +1,7 @@
 import { Logger } from 'pino';
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import { LRUCache } from 'lru-cache';
 
 export class NetworkPolicyService {
     private logger: Logger;
@@ -18,15 +19,20 @@ export class NetworkPolicyService {
         /^fe80:/i, // IPv6 link-local
     ];
 
-    private requestCounts = new Map<string, { count: number; resetTime: number }>();
     private readonly RATE_LIMIT = 30;
     private readonly WINDOW_MS = 60000;
+    // Use LRUCache to prevent unbounded memory growth
+    private requestCounts: LRUCache<string, { count: number; resetTime: number }>;
 
     constructor(logger: Logger) {
         this.logger = logger;
+        this.requestCounts = new LRUCache({
+            max: 10000,
+            ttl: this.WINDOW_MS,
+        });
     }
 
-    async validateUrl(url: string): Promise<{ valid: boolean; message?: string }> {
+    async validateUrl(url: string): Promise<{ valid: boolean; message?: string; resolvedIp?: string }> {
         try {
             const parsed = new URL(url);
             const hostname = parsed.hostname;
@@ -43,15 +49,29 @@ export class NetworkPolicyService {
             if (!net.isIP(hostname)) {
                 try {
                     const lookup = await dns.lookup(hostname, { all: true });
+                    // Store resolved IPs to check against blocklist
+                    const resolvedIps: string[] = [];
+
                     for (const address of lookup) {
-                        const ip = address.address;
+                        let ip = address.address;
+
+                        // Fix Sev0: Normalize IPv6-mapped IPv4 addresses
+                        if (ip.startsWith('::ffff:')) {
+                            ip = ip.substring(7);
+                        }
+
                         for (const range of this.privateRanges) {
                             if (range.test(ip)) {
                                 this.logger.warn({ hostname, ip }, 'SSRF attempt detected: DNS resolves to private IP');
                                 return { valid: false, message: 'Access denied: hostname resolves to private network' };
                             }
                         }
+                        resolvedIps.push(ip);
                     }
+
+                    // Fix Sev1: Return the validated IP to prevent DNS rebinding
+                    // Use the first resolved IP
+                    return { valid: true, resolvedIp: resolvedIps[0] };
                 } catch (err: any) {
                     // Strict SSRF protection: block if DNS lookup fails
                     this.logger.warn({ hostname, err: err.message }, 'DNS lookup failed during URL validation, blocking request');
@@ -59,7 +79,8 @@ export class NetworkPolicyService {
                 }
             }
 
-            return { valid: true };
+            // If it was already an IP, it's valid if it passed the range check above
+            return { valid: true, resolvedIp: hostname };
         } catch (err: any) {
             return { valid: false, message: `Invalid URL: ${err.message}` };
         }

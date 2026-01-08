@@ -28,3 +28,20 @@ export interface JSONRPCResponse {
         data?: any;
     };
 }
+
+export interface ToolPackage {
+    id: string; // e.g., "github"
+    description?: string;
+    version?: string;
+}
+
+export interface ToolStub {
+    id: string; // e.g., "github__create_issue"
+    name: string; // e.g., "create_issue"
+    description?: string;
+}
+
+export interface ToolManifest {
+    version: string;
+    tools: ToolStub[];
+}

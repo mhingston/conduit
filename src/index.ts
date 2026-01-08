@@ -12,6 +12,7 @@ import { PyodideExecutor } from './executors/pyodide.executor.js';
 import { IsolateExecutor } from './executors/isolate.executor.js';
 import { ExecutorRegistry } from './core/registries/executor.registry.js';
 import { ExecutionService } from './core/execution.service.js';
+import { buildDefaultMiddleware } from './core/middleware/middleware.builder.js';
 async function main() {
     const configService = new ConfigService();
     const logger = createLogger(configService);
@@ -29,8 +30,8 @@ async function main() {
         }
 
         const executorRegistry = new ExecutorRegistry();
-        executorRegistry.register('deno', new DenoExecutor());
-        executorRegistry.register('python', new PyodideExecutor());
+        executorRegistry.register('deno', new DenoExecutor(configService.get('denoMaxPoolSize')));
+        executorRegistry.register('python', new PyodideExecutor(configService.get('pyodideMaxPoolSize')));
 
         // IsolateExecutor needs gatewayService
         const isolateExecutor = new IsolateExecutor(logger, gatewayService);
@@ -48,7 +49,7 @@ async function main() {
             logger,
             executionService,
             gatewayService,
-            securityService
+            buildDefaultMiddleware(securityService)
         );
 
         const opsServer = new OpsServer(logger, configService.all, gatewayService, requestController);

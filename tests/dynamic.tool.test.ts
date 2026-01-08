@@ -11,6 +11,7 @@ import { ExecutorRegistry } from '../src/core/registries/executor.registry.js';
 import { DenoExecutor } from '../src/executors/deno.executor.js';
 import { PyodideExecutor } from '../src/executors/pyodide.executor.js';
 import { IsolateExecutor } from '../src/executors/isolate.executor.js';
+import { buildDefaultMiddleware } from '../src/core/middleware/middleware.builder.js';
 import fs from 'node:fs';
 
 const logger = pino({ level: 'silent' });
@@ -68,7 +69,7 @@ describe('Dynamic Tool Calling (E2E)', () => {
             executorRegistry
         );
 
-        requestController = new RequestController(logger, executionService, gatewayService, securityService);
+        requestController = new RequestController(logger, executionService, gatewayService, buildDefaultMiddleware(securityService));
         transport = new SocketTransport(logger, requestController, concurrencyService);
 
         ipcAddress = await transport.listen({ port: 0, host: '127.0.0.1' });

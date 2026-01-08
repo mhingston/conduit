@@ -21,6 +21,7 @@ import { PyodideExecutor } from '../src/executors/pyodide.executor.js';
 import { IsolateExecutor } from '../src/executors/isolate.executor.js';
 import { ExecutorRegistry } from '../src/core/registries/executor.registry.js';
 import { ExecutionService } from '../src/core/execution.service.js';
+import { buildDefaultMiddleware } from '../src/core/middleware/middleware.builder.js';
 import net from 'net';
 import path from 'path';
 
@@ -77,7 +78,7 @@ describe('E2E: Stdio Upstream Integration', () => {
                 logger,
                 executionService,
                 gatewayService,
-                securityService
+                buildDefaultMiddleware(securityService)
             );
 
             opsServer = new OpsServer(logger, configService.all, gatewayService, requestController);

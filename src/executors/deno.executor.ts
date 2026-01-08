@@ -29,7 +29,11 @@ export class DenoExecutor implements Executor {
     // Using 'any' for the Set because ChildProcess type import can be finicky across node versions/types
     // but at runtime it is a ChildProcess
     private activeProcesses = new Set<any>();
-    private readonly MAX_CONCURRENT_PROCESSES = 10;
+    private maxConcurrentProcesses: number;
+
+    constructor(maxConcurrentProcesses = 10) {
+        this.maxConcurrentProcesses = maxConcurrentProcesses;
+    }
 
     private getShim(): string {
         if (this.shimContent) return this.shimContent;
@@ -46,7 +50,7 @@ export class DenoExecutor implements Executor {
         const { logger } = context;
 
         // Check concurrent process limit
-        if (this.activeProcesses.size >= this.MAX_CONCURRENT_PROCESSES) {
+        if (this.activeProcesses.size >= this.maxConcurrentProcesses) {
             return {
                 stdout: '',
                 stderr: '',

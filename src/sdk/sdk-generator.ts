@@ -35,7 +35,7 @@ export class SDKGenerator {
 
         // Inject allowlist for SDK-level enforcement
         if (allowedTools && allowedTools.length > 0) {
-            const normalizedList = allowedTools.map(t => t.replace('.', '__'));
+            const normalizedList = allowedTools.map(t => t.replace(/\./g, '__'));
             lines.push(`const __allowedTools = ${JSON.stringify(normalizedList)};`);
         } else {
             lines.push('const __allowedTools = null;');
@@ -79,7 +79,7 @@ export class SDKGenerator {
         if (enableRawFallback) {
             lines.push(`  /** Call a tool by its full name (escape hatch for dynamic/unknown tools) */`);
             lines.push(`  async $raw(name, args) {`);
-            lines.push(`    const normalized = name.replace('.', '__');`);
+            lines.push(`    const normalized = name.replace(/\\./g, '__');`);
             lines.push(`    if (__allowedTools) {`);
             lines.push(`      const allowed = __allowedTools.some(p => {`);
             lines.push(`        if (p.endsWith('__*')) return normalized.startsWith(p.slice(0, -1));`);
@@ -112,7 +112,7 @@ export class SDKGenerator {
 
         // Inject allowlist for SDK-level enforcement
         if (allowedTools && allowedTools.length > 0) {
-            const normalizedList = allowedTools.map(t => t.replace('.', '__'));
+            const normalizedList = allowedTools.map(t => t.replace(/\./g, '__'));
             lines.push(`_allowed_tools = ${JSON.stringify(normalizedList)}`);
         } else {
             lines.push('_allowed_tools = None');
@@ -181,7 +181,7 @@ export class SDKGenerator {
 
         // Inject allowlist for SDK-level enforcement (optional, as Gateway also enforces)
         if (allowedTools && allowedTools.length > 0) {
-            const normalizedList = allowedTools.map(t => t.replace('.', '__'));
+            const normalizedList = allowedTools.map(t => t.replace(/\./g, '__'));
             lines.push(`const __allowedTools = ${JSON.stringify(normalizedList)};`);
         } else {
             lines.push('const __allowedTools = null;');
@@ -218,7 +218,7 @@ export class SDKGenerator {
         // Add $raw escape hatch
         if (enableRawFallback) {
             lines.push(`  async $raw(name, args) {`);
-            lines.push(`    const normalized = name.replace('.', '__');`);
+            lines.push(`    const normalized = name.replace(/\\./g, '__');`);
             lines.push(`    if (__allowedTools) {`);
             lines.push(`      const allowed = __allowedTools.some(p => {`);
             lines.push(`        if (p.endsWith('__*')) return normalized.startsWith(p.slice(0, -1));`);

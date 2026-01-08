@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { RequestController } from '../src/core/request.controller';
 import { ExecutionContext } from '../src/core/execution.context';
+import { buildDefaultMiddleware } from '../src/core/middleware/middleware.builder.js';
 import pino from 'pino';
 
 const logger = pino({ level: 'silent' });
@@ -44,13 +45,7 @@ describe('RequestController Routing', () => {
             generateIsolateSDK: vi.fn().mockReturnValue('sdk'),
         };
 
-        controller = new RequestController(
-            logger,
-            { timeoutMs: 1000, memoryLimitMb: 128, maxOutputBytes: 1024, maxLogEntries: 100 },
-            mockGatewayService,
-            mockSecurityService
-        );
-        // Inject mock execution service
+        // Create controller with mock execution service
         const mockExecutionService = {
             executeTypeScript: vi.fn().mockImplementation(async (code) => {
                 const bashedCode = code.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '');
@@ -67,12 +62,20 @@ describe('RequestController Routing', () => {
                     return { stdout: 'deno', stderr: '', exitCode: 0 };
                 }
             }),
-            ipcAddress: ''
+            ipcAddress: '',
+            shutdown: vi.fn(),
+            healthCheck: vi.fn().mockResolvedValue({ status: 'ok' }),
+            warmup: vi.fn(),
         };
-        (controller as any).executionService = mockExecutionService;
+
+        controller = new RequestController(
+            logger,
+            mockExecutionService as any,
+            mockGatewayService,
+            buildDefaultMiddleware(mockSecurityService)
+        );
         (controller as any).denoExecutor = mockDenoExecutor;
         (controller as any).pyodideExecutor = mockPyodideExecutor;
-        // Inject mock isolate executor
         (controller as any).isolateExecutor = mockIsolateExecutor;
         (controller as any).sdkGenerator = mockSdkGenerator;
     });

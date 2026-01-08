@@ -12,13 +12,20 @@ export interface UpstreamCredentials {
         clientSecret: string;
         tokenUrl: string;
         refreshToken: string;
-        accessToken?: string;
-        expiresAt?: number;
     };
+}
+
+interface CachedToken {
+    accessToken: string;
+    expiresAt: number;
 }
 
 export class AuthService {
     private logger: Logger;
+    // Cache tokens separately from credentials to avoid mutation
+    private tokenCache = new Map<string, CachedToken>();
+    // Prevent concurrent refresh requests for the same client
+    private refreshLocks = new Map<string, Promise<string>>();
 
     constructor(logger: Logger) {
         this.logger = logger;
@@ -41,11 +48,34 @@ export class AuthService {
         if (!creds.oauth2) throw new Error('OAuth2 credentials missing');
 
         const { oauth2 } = creds;
+        const cacheKey = `${oauth2.clientId}:${oauth2.tokenUrl}`;
 
-        // Check if token is still valid (with 30s buffer)
-        if (oauth2.accessToken && oauth2.expiresAt && oauth2.expiresAt > Date.now() + 30000) {
-            return `Bearer ${oauth2.accessToken}`;
+        // Check cache first (with 30s buffer)
+        const cached = this.tokenCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now() + 30000) {
+            return `Bearer ${cached.accessToken}`;
         }
+
+        // Check if refresh is already in progress
+        const existingRefresh = this.refreshLocks.get(cacheKey);
+        if (existingRefresh) {
+            return existingRefresh;
+        }
+
+        // Start refresh with lock
+        const refreshPromise = this.doRefresh(creds, cacheKey);
+        this.refreshLocks.set(cacheKey, refreshPromise);
+
+        try {
+            return await refreshPromise;
+        } finally {
+            this.refreshLocks.delete(cacheKey);
+        }
+    }
+
+    private async doRefresh(creds: UpstreamCredentials, cacheKey: string): Promise<string> {
+        const { oauth2 } = creds;
+        if (!oauth2) throw new Error('OAuth2 credentials missing');
 
         this.logger.info('Refreshing OAuth2 token');
 
@@ -59,8 +89,11 @@ export class AuthService {
 
             const { access_token, expires_in } = response.data;
 
-            oauth2.accessToken = access_token;
-            oauth2.expiresAt = Date.now() + (expires_in * 1000);
+            // Cache the token (don't mutate the input credentials)
+            this.tokenCache.set(cacheKey, {
+                accessToken: access_token,
+                expiresAt: Date.now() + (expires_in * 1000),
+            });
 
             return `Bearer ${access_token}`;
         } catch (err: any) {

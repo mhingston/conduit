@@ -47,6 +47,7 @@ describe('AuthService', () => {
     });
 
     it('should reuse OAuth2 token if not expired', async () => {
+        // First call - will trigger refresh
         const creds: any = {
             type: 'oauth2',
             oauth2: {
@@ -54,13 +55,24 @@ describe('AuthService', () => {
                 clientSecret: 'secret',
                 tokenUrl: 'http://token',
                 refreshToken: 'refresh',
-                accessToken: 'cached-access',
-                expiresAt: Date.now() + 100000, // Valid
             },
         };
 
-        const headers = await authService.getAuthHeaders(creds);
-        expect(headers['Authorization']).toBe('Bearer cached-access');
-        expect(axios.post).not.toHaveBeenCalled();
+        (axios.post as any).mockResolvedValue({
+            data: {
+                access_token: 'cached-access',
+                expires_in: 3600,
+            },
+        });
+
+        // First call fetches the token
+        const headers1 = await authService.getAuthHeaders(creds);
+        expect(headers1['Authorization']).toBe('Bearer cached-access');
+        expect(axios.post).toHaveBeenCalledTimes(1);
+
+        // Second call should reuse cached token (no additional post)
+        const headers2 = await authService.getAuthHeaders(creds);
+        expect(headers2['Authorization']).toBe('Bearer cached-access');
+        expect(axios.post).toHaveBeenCalledTimes(1); // Still 1, not 2
     });
 });

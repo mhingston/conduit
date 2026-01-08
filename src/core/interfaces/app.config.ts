@@ -9,6 +9,8 @@ export interface AppConfig {
     secretRedactionPatterns: string[];
     ipcBearerToken: string;
     maxConcurrent: number;
+    denoMaxPoolSize: number;
+    pyodideMaxPoolSize: number;
     metricsUrl: string;
     opsPort?: number;
     upstreams?: UpstreamInfo[];

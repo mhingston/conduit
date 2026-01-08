@@ -6,6 +6,7 @@ import { SecurityService } from '../src/core/security.service.js';
 import { RequestController } from '../src/core/request.controller.js';
 import { ExecutionService } from '../src/core/execution.service.js';
 import { ExecutorRegistry } from '../src/core/registries/executor.registry.js';
+import { buildDefaultMiddleware } from '../src/core/middleware/middleware.builder.js';
 import pino from 'pino';
 
 const logger = pino({ level: 'silent' });
@@ -29,7 +30,7 @@ describe('OpsServer', () => {
             securityService,
             executorRegistry
         );
-        const requestController = new RequestController(logger, executionService, gatewayService, securityService);
+        const requestController = new RequestController(logger, executionService, gatewayService, buildDefaultMiddleware(securityService));
         opsServer = new OpsServer(logger, configService.all, gatewayService, requestController);
     });
 

@@ -1,17 +1,11 @@
 import { ExecutionContext } from './execution.context.js';
 import { Logger } from 'pino';
 
-import { ResourceLimits } from './config.service.js';
 import { GatewayService } from '../gateway/gateway.service.js';
-import { SecurityService } from './security.service.js';
 import { metrics } from './metrics.service.js';
 import { ExecutionService } from './execution.service.js';
 
 import { Middleware } from './interfaces/middleware.interface.js';
-import { LoggingMiddleware } from './middleware/logging.middleware.js';
-import { ErrorHandlingMiddleware } from './middleware/error.middleware.js';
-import { AuthMiddleware } from './middleware/auth.middleware.js';
-import { RateLimitMiddleware } from './middleware/ratelimit.middleware.js';
 
 import { ConduitError, JSONRPCRequest, JSONRPCResponse } from './types.js';
 
@@ -28,17 +22,12 @@ export class RequestController {
         logger: Logger,
         executionService: ExecutionService,
         gatewayService: GatewayService,
-        securityService: SecurityService // Keeps needing securityService for Middleware initialization
+        middlewares: Middleware[] = []
     ) {
         this.logger = logger;
         this.executionService = executionService;
         this.gatewayService = gatewayService;
-
-        // Setup middleware pipeline
-        this.use(new ErrorHandlingMiddleware());
-        this.use(new LoggingMiddleware());
-        this.use(new AuthMiddleware(securityService));
-        this.use(new RateLimitMiddleware(securityService));
+        this.middlewares = middlewares;
     }
 
     use(middleware: Middleware) {
@@ -69,6 +58,38 @@ export class RequestController {
         return dispatch(0);
     }
 
+    private async handleValidateTool(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
+        const params = request.params as { toolName: string; args: any };
+        if (!params || !params.toolName || !params.args) {
+            return {
+                jsonrpc: '2.0',
+                id: request.id,
+                error: {
+                    code: -32602,
+                    message: 'Missing toolName or args params',
+                },
+            };
+        }
+
+        try {
+            const result = await this.gatewayService.validateTool(params.toolName, params.args, context);
+            return {
+                jsonrpc: '2.0',
+                id: request.id,
+                result,
+            };
+        } catch (error: any) {
+            return {
+                jsonrpc: '2.0',
+                id: request.id,
+                error: {
+                    code: -32603,
+                    message: error.message || 'Validation failed',
+                },
+            };
+        }
+    }
+
     private async finalHandler(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
         const { method, params, id } = request;
         // Logging and metrics handled by middlewares now
@@ -80,6 +101,14 @@ export class RequestController {
         switch (method) {
             case 'mcp.discoverTools':
                 return this.handleDiscoverTools(params, context, id);
+            case 'mcp.listToolPackages':
+                return this.handleListToolPackages(params, context, id);
+            case 'mcp.listToolStubs':
+                return this.handleListToolStubs(params, context, id);
+            case 'mcp.readToolSchema':
+                return this.handleReadToolSchema(params, context, id);
+            case 'mcp.validateTool':
+                return this.handleValidateTool(request, context);
             case 'mcp.callTool':
                 return this.handleCallTool(params, context, id);
             case 'mcp.executeTypeScript':
@@ -105,6 +134,60 @@ export class RequestController {
                 tools,
             },
         };
+    }
+
+    private async handleListToolPackages(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
+        const packages = await this.gatewayService.listToolPackages();
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+                packages
+            }
+        };
+    }
+
+    private async handleListToolStubs(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
+        const { packageId } = params;
+        if (!packageId) {
+            return this.errorResponse(id, -32602, 'Missing packageId parameter');
+        }
+
+        try {
+            const stubs = await this.gatewayService.listToolStubs(packageId, context);
+            return {
+                jsonrpc: '2.0',
+                id,
+                result: {
+                    stubs
+                }
+            };
+        } catch (error: any) {
+            return this.errorResponse(id, -32001, error.message);
+        }
+    }
+
+    private async handleReadToolSchema(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
+        const { toolId } = params;
+        if (!toolId) {
+            return this.errorResponse(id, -32602, 'Missing toolId parameter');
+        }
+
+        try {
+            const schema = await this.gatewayService.getToolSchema(toolId, context);
+            if (!schema) {
+                return this.errorResponse(id, -32001, `Tool not found: ${toolId}`);
+            }
+            return {
+                jsonrpc: '2.0',
+                id,
+                result: {
+                    schema
+                }
+            };
+        } catch (error: any) {
+            return this.errorResponse(id, -32003, error.message);
+        }
     }
 
     private async handleCallTool(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {

@@ -1,5 +1,6 @@
 import { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
+import { LRUCache } from 'lru-cache';
 
 export interface Session {
     allowedTools?: string[];
@@ -8,15 +9,15 @@ export interface Session {
 
 export class SessionManager {
     private logger: Logger;
-    private sessions = new Map<string, Session>();
+    private sessions: LRUCache<string, Session>;
     private readonly SESSION_TTL_MS = 3600000; // 1 hour
 
     constructor(logger: Logger) {
         this.logger = logger;
-
-        // Cleanup expired sessions periodically
-        const cleanupInterval = setInterval(() => this.cleanupSessions(), 300000); // Every 5 minutes
-        cleanupInterval.unref();
+        this.sessions = new LRUCache({
+            max: 10000,
+            ttl: this.SESSION_TTL_MS,
+        });
     }
 
     createSession(allowedTools?: string[]): string {
@@ -29,24 +30,15 @@ export class SessionManager {
     }
 
     getSession(token: string): Session | undefined {
-        const session = this.sessions.get(token);
-        if (session && Date.now() - session.createdAt > this.SESSION_TTL_MS) {
-            this.sessions.delete(token);
-            return undefined;
-        }
-        return session;
+        return this.sessions.get(token);
     }
 
     invalidateSession(token: string): void {
         this.sessions.delete(token);
     }
 
-    private cleanupSessions() {
-        const now = Date.now();
-        for (const [token, session] of this.sessions.entries()) {
-            if (now - session.createdAt > this.SESSION_TTL_MS) {
-                this.sessions.delete(token);
-            }
-        }
+    cleanupSessions() {
+        // LRUCache handles this automatically via TTL
+        this.sessions.purgeStale();
     }
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import yaml from 'js-yaml';
 
 dotenv.config();
@@ -38,7 +38,7 @@ export const StdioUpstreamSchema = z.object({
     type: z.literal('stdio'),
     command: z.string(),
     args: z.array(z.string()).optional(),
-    env: z.record(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
 });
 
 export const UpstreamInfoSchema = z.union([HttpUpstreamSchema, StdioUpstreamSchema]);
@@ -60,6 +60,8 @@ export const ConfigSchema = z.object({
     ]),
     ipcBearerToken: z.string().optional().default(() => Math.random().toString(36).substring(7)),
     maxConcurrent: z.number().default(10),
+    denoMaxPoolSize: z.number().default(10),
+    pyodideMaxPoolSize: z.number().default(3),
     metricsUrl: z.string().default('http://127.0.0.1:9464/metrics'),
     opsPort: z.number().optional(),
     upstreams: z.array(UpstreamInfoSchema).default([]),

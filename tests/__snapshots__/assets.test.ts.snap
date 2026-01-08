@@ -17,7 +17,7 @@ const tools = {
     },
   },
   async $raw(name, args) {
-    const normalized = name.replace('.', '__');
+    const normalized = name.replace(/\\./g, '__');
     if (__allowedTools) {
       const allowed = __allowedTools.some(p => {
         if (p.endsWith('__*')) return normalized.startsWith(p.slice(0, -1));
@@ -82,7 +82,7 @@ const tools = {
   },
   /** Call a tool by its full name (escape hatch for dynamic/unknown tools) */
   async $raw(name, args) {
-    const normalized = name.replace('.', '__');
+    const normalized = name.replace(/\\./g, '__');
     if (__allowedTools) {
       const allowed = __allowedTools.some(p => {
         if (p.endsWith('__*')) return normalized.startsWith(p.slice(0, -1));

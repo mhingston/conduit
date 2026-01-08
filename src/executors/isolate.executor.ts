@@ -177,6 +177,11 @@ export class IsolateExecutor implements Executor {
 
             const script = await isolate.compileScript(wrappedCode);
 
+            // NOTE: Two timeouts exist intentionally:
+            // 1. script.run timeout (below) - catches infinite synchronous loops
+            // 2. Promise.race timeout (after) - catches stuck async operations (tool calls)
+            // Tool calls may continue briefly after timeout; isolate.dispose() cleans up.
+
             // Start execution with synchronous timeout protection
             await script.run(ctx, { timeout: limits.timeoutMs });
 

@@ -22,6 +22,18 @@ export interface SDKGeneratorOptions {
     enableRawFallback?: boolean;
 }
 
+// Inline parsing to avoid circular dependency with PolicyService
+function parseToolName(qualifiedName: string): { namespace: string; name: string } {
+    const separatorIndex = qualifiedName.indexOf('__');
+    if (separatorIndex === -1) {
+        return { namespace: '', name: qualifiedName };
+    }
+    return {
+        namespace: qualifiedName.substring(0, separatorIndex),
+        name: qualifiedName.substring(separatorIndex + 2)
+    };
+}
+
 /**
  * Convert a prefixed tool name to a ToolBinding.
  * @param name Full tool name in format "namespace__methodName"
@@ -33,15 +45,28 @@ export function toToolBinding(
     inputSchema?: object,
     description?: string
 ): ToolBinding {
-    const [namespace, ...methodParts] = name.split('__');
-    const methodName = methodParts.join('__');
+    const toolId = parseToolName(name);
 
     return {
         name,
-        namespace: namespace || 'default',
-        methodName: methodName || name,
+        namespace: toolId.namespace || 'default',
+        methodName: toolId.name || name,
         inputSchema,
         description,
+    };
+}
+
+/**
+ * Convert a ToolStub to a ToolBinding.
+ * @param stub ToolStub from GatewayService
+ */
+export function fromToolStub(stub: { id: string; name: string; description?: string }): ToolBinding {
+    const toolId = parseToolName(stub.id);
+    return {
+        name: stub.id,
+        namespace: toolId.namespace || 'default',
+        methodName: stub.name, // stub.name is already the method name (e.g. "create_issue")
+        description: stub.description,
     };
 }
 

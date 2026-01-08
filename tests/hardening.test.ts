@@ -6,6 +6,7 @@ import { SecurityService } from '../src/core/security.service.js';
 import { ConcurrencyService } from '../src/core/concurrency.service.js';
 import { ExecutionService } from '../src/core/execution.service.js';
 import { ExecutorRegistry } from '../src/core/registries/executor.registry.js';
+import { buildDefaultMiddleware } from '../src/core/middleware/middleware.builder.js';
 import { pino } from 'pino';
 import net from 'net';
 import os from 'os';
@@ -27,7 +28,9 @@ describe('V1 Hardening Tests', () => {
 
         const gatewayService = {
             callTool: vi.fn(),
-            discoverTools: vi.fn().mockResolvedValue([])  // Return empty array for SDK generation
+            discoverTools: vi.fn().mockResolvedValue([]), // Return empty array for SDK generation
+            listToolPackages: vi.fn().mockResolvedValue([]),
+            listToolStubs: vi.fn().mockResolvedValue([])
         } as any;
 
         const defaultLimits = { timeoutMs: 1000, memoryLimitMb: 128, maxOutputBytes: 1024, maxLogEntries: 5 }; // Low log limit
@@ -47,12 +50,13 @@ describe('V1 Hardening Tests', () => {
             securityService,
             executorRegistry
         );
+        executionService.ipcAddress = '127.0.0.1:0'; // Dummy address for tests
         // Ensure executionService has required methods for RequestController healthCheck/warmup delegation
         vi.spyOn(executionService, 'shutdown').mockResolvedValue();
         vi.spyOn(executionService, 'warmup').mockResolvedValue();
         vi.spyOn(executionService, 'healthCheck').mockResolvedValue({ status: 'ok' });
 
-        requestController = new RequestController(logger, executionService, gatewayService, securityService);
+        requestController = new RequestController(logger, executionService, gatewayService, buildDefaultMiddleware(securityService));
 
         transport = new SocketTransport(logger, requestController, concurrencyService);
 

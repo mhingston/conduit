@@ -1,7 +1,7 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { PinoInstrumentation } from '@opentelemetry/instrumentation-pino';
 
@@ -12,7 +12,7 @@ export class OtelService {
 
     async start() {
         this.sdk = new NodeSDK({
-            resource: new Resource({
+            resource: resourceFromAttributes({
                 [SemanticResourceAttributes.SERVICE_NAME]: 'conduit',
             }),
             metricReader: new PrometheusExporter({

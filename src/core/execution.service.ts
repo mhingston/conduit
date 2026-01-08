@@ -52,23 +52,18 @@ export class ExecutionService {
         }
 
         // 2. Routing Logic (Isolate vs Deno)
-        const bashedCode = code.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '');
-        const hasImports = /^\s*import\s/m.test(bashedCode) ||
-            /^\s*export\s/m.test(bashedCode) ||
-            /\bDeno\./.test(bashedCode) ||
-            /\bDeno\b/.test(bashedCode);
+        const hasImports = /\bimport\b/.test(code) ||
+            /\bexport\b/.test(code) ||
+            /\bDeno\b/.test(code);
 
         // Try to use IsolateExecutor if available and code is simple
         if (!hasImports && this.executorRegistry.has('isolate')) {
-            const result = await this.executeIsolate(code, effectiveLimits, context, allowedTools);
-            // If result failed due to missing isolate (redundant check but safe) or internal error that implies it's not suitable?
-            // Actually executeIsolate returns ExecutionResult. If it returns valid result, we are good.
-            if (result.error && result.error.code === ConduitError.InternalError && result.error.message === 'IsolateExecutor not available') {
-                // Fallback? No, if we decided to route there we stick with it or fail.
-                // But wait, my executeIsolate impl below wraps logic.
-                // Let's keep executeIsolate as a delegate.
-            }
-            return result;
+            return await this.executeIsolate(code, effectiveLimits, context, allowedTools);
+        }
+
+        // Fix Sev2: Ensure IPC address is set before execution if Deno is needed
+        if (!this._ipcAddress) {
+            return this.createErrorResult(ConduitError.InternalError, 'IPC address not initialized');
         }
 
         // 3. Fallback to Deno
@@ -79,8 +74,7 @@ export class ExecutionService {
         const executor = this.executorRegistry.get('deno')!;
 
         // 4. SDK Generation
-        const tools = await this.gatewayService.discoverTools(context);
-        const bindings = tools.map(t => toToolBinding(t.name, t.inputSchema, t.description));
+        const bindings = await this.getToolBindings(context);
         const sdkCode = this.sdkGenerator.generateTypeScript(bindings, allowedTools);
 
         // 5. Session & Execution
@@ -107,6 +101,12 @@ export class ExecutionService {
         if (!this.executorRegistry.has('python')) {
             return this.createErrorResult(ConduitError.InternalError, 'Python execution not available');
         }
+
+        // Fix Sev2: Ensure IPC address is set before execution for Python
+        if (!this._ipcAddress) {
+            return this.createErrorResult(ConduitError.InternalError, 'IPC address not initialized');
+        }
+
         const executor = this.executorRegistry.get('python')!;
 
         const securityResult = this.securityService.validateCode(code);
@@ -114,8 +114,7 @@ export class ExecutionService {
             return this.createErrorResult(ConduitError.Forbidden, securityResult.message || 'Access denied');
         }
 
-        const tools = await this.gatewayService.discoverTools(context);
-        const bindings = tools.map(t => toToolBinding(t.name, t.inputSchema, t.description));
+        const bindings = await this.getToolBindings(context);
         const sdkCode = this.sdkGenerator.generatePython(bindings, allowedTools);
 
         const sessionToken = this.securityService.createSession(allowedTools);
@@ -128,6 +127,25 @@ export class ExecutionService {
         } finally {
             this.securityService.invalidateSession(sessionToken);
         }
+    }
+
+    private async getToolBindings(context: ExecutionContext) {
+        // Phase 1: Lazy loading - fetch stubs instead of full schemas
+        const packages = await this.gatewayService.listToolPackages();
+        const allBindings = [];
+
+        for (const pkg of packages) {
+            try {
+                // Determine if we need to fetch tools for this package
+                // Optimization: if allowedTools is strict, we could filter packages here
+
+                const stubs = await this.gatewayService.listToolStubs(pkg.id, context);
+                allBindings.push(...stubs.map(s => toToolBinding(s.id, undefined, s.description)));
+            } catch (err: any) {
+                this.logger.warn({ packageId: pkg.id, err: err.message }, 'Failed to list stubs for package');
+            }
+        }
+        return allBindings;
     }
 
     async executeIsolate(
@@ -147,8 +165,7 @@ export class ExecutionService {
             return this.createErrorResult(ConduitError.Forbidden, securityResult.message || 'Access denied');
         }
 
-        const tools = await this.gatewayService.discoverTools(context);
-        const bindings = tools.map(t => toToolBinding(t.name, t.inputSchema, t.description));
+        const bindings = await this.getToolBindings(context);
         const sdkCode = this.sdkGenerator.generateIsolateSDK(bindings, allowedTools);
 
         try {

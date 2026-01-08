@@ -31,8 +31,12 @@ interface PooledWorker {
 export class PyodideExecutor implements Executor {
     private shimContent: string = '';
     private pool: PooledWorker[] = [];
-    private maxPoolSize = 3;
+    private maxPoolSize: number;
     private maxRunsPerWorker = 1;
+
+    constructor(maxPoolSize = 3) {
+        this.maxPoolSize = maxPoolSize;
+    }
 
     private getShim(): string {
         if (this.shimContent) return this.shimContent;
@@ -72,7 +76,12 @@ export class PyodideExecutor implements Executor {
                 };
                 worker.on('message', onMessage);
                 worker.on('error', reject);
-                setTimeout(() => reject(new Error('Worker init timeout')), 10000);
+                setTimeout(() => {
+                    // Cleanup worker on timeout
+                    worker.terminate();
+                    this.pool = this.pool.filter(p => p !== pooled);
+                    reject(new Error('Worker init timeout'));
+                }, 10000);
             });
 
             return pooled;

@@ -1,168 +1,171 @@
+<div align="center">
+  <img src="./logo.png" alt="Conduit Logo" width="400"/>
+</div>
+
 # Conduit
 
-Conduit is a **Code Execution Substrate for MCP Agents**. Agents write code against typed APIs; tools are bindings, not RPC endpoints.
+<div align="center">
 
-## Why Conduit?
+[![npm version](https://badge.fury.io/js/@mhingston%2Fconduit.svg)](https://www.npmjs.com/package/@mhingston/conduit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js Version](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org/)
+[![MCP](https://img.shields.io/badge/MCP-Compatible-purple.svg)](https://modelcontextprotocol.io/)
 
-Conduit solves the **"context exhaustion"** problem common in AI tool integration. Instead of exposing dozens of static tool definitions to an LLM (which consumes significant tokens), Conduit exposes only two tools: `executeTypeScript` and `executePython`.
+</div>
 
-The LLM avoids token overhead by:
-1. **Executing Code:** The model writes code to handle complex logic.
-2. **Dynamic Discovery:** Within the sandbox, the code dynamically discovers and calls required MCP tools.
-3. **98% Token Reduction:** This "progressive disclosure" pattern can reduce the initial prompt size by up to 98%, preserving the context window for actual work.
+## What is Conduit?
 
-## Code Mode Architecture
+Conduit is a **secure Code Mode execution substrate** for [MCP](https://modelcontextprotocol.io/) agents.
 
-Conduit follows the [Code Mode](https://developers.cloudflare.com/agents/code-mode/) pattern:
-- **LLMs generate code**, not tool calls
-- **Tools are libraries**, not RPC endpoints
-- **Execution is sandboxed** in Deno/Pyodide
-- **Tool invocation** happens via typed SDK bindings
+It lets agents:
+- generate **real TypeScript or Python code**
+- call tools via **language-native APIs** (`tools.github.createIssue()`)
+- run that code in **isolated, resource-governed sandboxes**
+- without exposing credentials or the host environment
 
-### Example (TypeScript)
+Conduit is optimized for:
+- [Code Mode](./docs/CODE_MODE.md) (not JSON tool calling)
+- composable multi-tool execution
+- strict safety, limits, and observability
 
-```typescript
-// Discover what's available
-const schemas = await discoverMCPTools();
+## What Conduit Is Not
 
-// Call tools via typed SDK
-const issue = await tools.github.createIssue({
-  title: "New feature",
-  body: "Description here"
-});
+- ❌ A general-purpose script runner
+- ❌ An LLM gateway or provider abstraction
+- ❌ A plugin UI or agent framework
+- ❌ A long-lived compute environment
 
-// Dynamic fallback for unknown tools
-const result = await tools.$raw("custom__tool", { arg: "value" });
-```
+Conduit executes **short-lived, isolated programs** with explicit limits.
 
-### Example (Python)
+---
 
-```python
-# Discover what's available
-schemas = await discover_mcp_tools()
+## 5-Minute Quick Start (Code Mode)
 
-# Call tools via typed SDK
-issue = await tools.github.create_issue({"title": "New feature"})
-
-# Dynamic fallback for unknown tools
-result = await tools.raw("custom__tool", {"arg": "value"})
-```
-
-## Features
-
-- **Secure Execution (TS/JS/Python):**
-  - **TypeScript/JavaScript:** Executed in a Deno 2.x sandbox with strictly enforced CPU, Memory (RSS monitoring), and Output limits.
-  - **In-Process JS:** Executed via **isolated-vm** (V8 isolates) for high-performance, low-overhead execution with strict memory/time limits.
-  - **Python:** Executed via Pyodide in an isolated **Worker Thread**, with mandatory worker recycling (zero state leak) and resource capping.
-  - **Tool Allowlisting:** Per-request authorization scope for tool discovery and execution.
-- **Upstream Orchestration:** Unified access to multiple upstream MCP servers with automatic tool discovery and aggregate namespaces.
-  - **SSRF Protection:** Strict validation of upstream URLs, including DNS resolution checks and **disabled HTTP redirects** to prevent bypass.
-- **Resource Governance:**
-  - **CPU Timeout:** Hard process termination (SIGKILL or worker.terminate) after configurable timeouts.
-  - **Memory Limits:** Host-side RSS monitoring (Deno), worker isolation (Python), and isolate heap limits (isolated-vm).
-  - **Output Capping:** Streams are truncated and processes terminated if output exceeds size limits (-32013).
-- **Transport Flexibility:** Support for Unix Domain Sockets (UDS), Windows Named Pipes, and TCP.
-- **Operational Excellence:**
-  - **Distributed Tracing:** OpenTelemetry (OTEL) integration for distributed tracing and distributed context propagation.
-  - **Structured Logging:** Pino logs with correlation IDs and automated PII/Secret redaction.
-  - **Metrics:** Dedicated Ops server exposing metrics in standard **Prometheus text format**.
-  - **Health Checks:** Aggregated health status including upstream status and Pyodide pool readiness.
-  - **Concurrency:** Semaphore-based backpressure management.
-
-## Architecture
-
-Conduit is built with a modular architecture:
-- **`src/core`**: Core services (Config, Logger, Concurrency, Ops, Request Dispatching).
-- **`src/executors`**: Secure runtime environments for code execution.
-- **`src/gateway`**: Upstream client management, auth (OAuth2/API Keys), and schema caching.
-- **`src/transport`**: Network abstraction layer.
-
-## Getting Started
-
-### Prerequisites
-- **Node.js**: v24.x LTS (pinned via `.npmrc`)
-- **Deno**: v2.x (pinned via `.tool-versions`)
-- **pnpm**: v10.x
-
-### Installation
+### 1. Start Conduit
 ```bash
 pnpm install
-```
-
-### Building
-```bash
+# Build the project
 npm run build
-```
-This will bundle the TypeScript source and copy assets (shims) to the `dist` directory.
-
-### Testing
-```bash
-npm test
-```
-Conduit includes a comprehensive suite of unit, integration, and contract tests (50+ tests total).
-
-### Running
-```bash
+# Start the server
 node dist/index.js
 ```
-The server will start and listen on the configured port (default 3000) for JSON-RPC connections.
 
-## Configuration
+### 2. Register an upstream MCP server
 
-Configuration is managed via environment variables and validated with Zod.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Transport port | `3000` |
-| `OPS_PORT` | Ops server port | `3001` |
-| `NODE_ENV` | Environment (dev/prod) | `development` |
-| `LOG_LEVEL` | Logging verbosity | `info` |
-| `IPC_BEARER_TOKEN` | Bearer token for server authorization | `(generated)` |
-
-### Configuration File (`conduit.yaml`)
-
-Conduit supports loading configuration from a YAML or JSON file. By default, it looks for `conduit.yaml` or `conduit.json` in the current working directory. You can override the file path using the `CONFIG_FILE` environment variable.
-
-**Environment Variable Substitution**:
-Configuration files support variable substitution using `${VAR}` or `${VAR:-default}` syntax.
-
-**Example `conduit.yaml`**:
-
+Create a `conduit.yaml` in the root:
 ```yaml
-port: ${PORT:-3000}
-logLevel: ${LOG_LEVEL:-info}
-maxConcurrent: 20
-resourceLimits:
-  memoryLimitMb: 512
-  timeoutMs: 60000
-
 upstreams:
-  # HTTP Upstream
   - id: github
-    type: http # Optional, default is http
-    url: ${GITHUB_MCP_URL}
-    credentials:
-      type: oauth2
-      clientId: ${GITHUB_CLIENT_ID}
-      clientSecret: ${GITHUB_CLIENT_SECRET}
-      tokenUrl: "https://github.com/login/oauth/access_token"
-      scopes: ["repo", "user"]
-
-  # Stdio Upstream (Local Process)
-  - id: local-fs
+    type: http
+    url: "http://localhost:3000/mcp"
+    # Or use local stdio for testing:
+  - id: filesystem
     type: stdio
     command: npx
-    args:
-      - "-y"
-      - "@modelcontextprotocol/server-filesystem"
-      - "/tmp"
-    env:
-      NODE_ENV: production
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 ```
 
-Environment variables (e.g., `PORT`) still take precedence over values defined in the configuration file if explicitly set in the process environment.
+### 3. Execute TypeScript
 
-Resource limits can be configured globally or overridden per request.
+Using any [MCP Client](https://modelcontextprotocol.io/clients) (Claude Desktop, etc.), call `mcp.executeTypeScript`:
+
+```ts
+// The agent writes this code:
+const result = await tools.filesystem.list_allowed_directories();
+console.log("Files:", result);
+```
+
+### 4. Result
+
+Conduit runs the code, handles the tool call securely, and returns:
+
+```json
+{
+  "stdout": "Files: ['/tmp']\n",
+  "stderr": "",
+  "exitCode": 0
+}
+```
+
+---
+
+## How It Works (High Level)
+
+```
+LLM → generates code  
+↓  
+Client → sends code to Conduit  
+↓  
+Conduit:
+- injects a `tools.*` SDK
+- enforces limits + allowlists
+- runs code in an isolated runtime (Deno / Pyodide / Isolate)
+↓  
+Tools are called via the Gateway  
+↓  
+Results returned as stdout / stderr
+```
+
+For implementation details, see [Architecture](./docs/ARCHITECTURE.md).
+
+---
+
+## Security & Isolation Guarantees
+
+Each execution:
+- runs in a fresh sandbox (no state reuse)
+- has strict CPU, memory, output, and log limits
+- cannot access host credentials or filesystem
+- can only call explicitly allowed tools
+- is forcibly terminated on violation
+
+**SSRF protection**:
+- private IP ranges blocked
+- DNS rebinding prevented
+- IPv6-mapped IPv4 handled
+
+**Secrets**:
+- never injected into user code
+- redacted from logs by default
+
+See [Security](./docs/SECURITY.md) for the full threat model.
+
+---
+
+## Strict vs Permissive Tool Validation
+
+By default, Conduit runs in **Permissive Mode** to allow easy exploration.
+
+**Strict mode**:
+- blocks unknown tools
+- blocks tools without schemas
+- enforces argument validation
+
+**Recommended**:
+- permissive mode for exploration
+- strict mode for production agents
+
+---
+
+## Design Principles
+
+- **Code over configuration**: Logic belongs in code, not yaml.
+- **Isolation over reuse**: Every execution is fresh.
+- **Explicit limits over best-effort**: Fail fast if limits are breached.
+- **SDKs over RPC**: Agents should write code against libraries, not protocols.
+
+---
+
+## Advanced Documentation
+
+- [Architecture](./docs/ARCHITECTURE.md) - Internals, IPC, Executors
+- [Security](./docs/SECURITY.md) - Threat model, specific mitigations
+- [Code Mode Philosophy](./docs/CODE_MODE.md) - Why we generate code
+
+## Note on Unix Sockets
+
+When using Unix domain sockets (`path` in configuration), Conduit does not automatically `unlink` the socket file on startup. It is recommended to ensure the socket path is cleaned up by the deployment environment or startup script to avoid `EADDRINUSE` errors.
 
 ## License
 MIT

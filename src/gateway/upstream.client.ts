@@ -1,6 +1,6 @@
 import { Logger } from 'pino';
 import axios from 'axios';
-import { JSONRPCRequest, JSONRPCResponse } from '../core/types.js';
+import { JSONRPCRequest, JSONRPCResponse, ToolManifest } from '../core/types.js';
 import { AuthService, UpstreamCredentials } from './auth.service.js';
 import { ExecutionContext } from '../core/execution.context.js';
 import { IUrlValidator } from '../core/interfaces/url.validator.interface.js';
@@ -168,7 +168,16 @@ export class UpstreamClient {
         try {
             this.logger.debug({ method: request.method }, 'Calling upstream MCP');
 
-            const response = await axios.post(url, request, {
+            // Fix Sev1: Use the resolved safe IP to prevent DNS rebinding
+            const originalUrl = new URL(url);
+            const requestUrl = securityResult.resolvedIp ?
+                `${originalUrl.protocol}//${securityResult.resolvedIp}${originalUrl.port ? ':' + originalUrl.port : ''}${originalUrl.pathname}${originalUrl.search}${originalUrl.hash}` :
+                url;
+
+            // Ensure Host header is set to the original hostname for virtual hosting/SNI
+            headers['Host'] = originalUrl.hostname;
+
+            const response = await axios.post(requestUrl, request, {
                 headers,
                 timeout: 10000,
                 maxRedirects: 0,
@@ -186,5 +195,50 @@ export class UpstreamClient {
                 },
             };
         }
+    }
+    async getManifest(context: ExecutionContext): Promise<ToolManifest | null> {
+        if (this.info.type !== 'http') return null;
+
+        try {
+            const baseUrl = this.info.url.replace(/\/$/, ''); // Remove trailing slash
+            const manifestUrl = `${baseUrl}/conduit.manifest.json`;
+
+            const headers: Record<string, string> = {
+                'X-Correlation-Id': context.correlationId,
+            };
+
+            if (this.info.credentials) {
+                const authHeaders = await this.authService.getAuthHeaders(this.info.credentials);
+                Object.assign(headers, authHeaders);
+            }
+
+            const securityResult = await this.urlValidator.validateUrl(manifestUrl);
+            if (!securityResult.valid) {
+                this.logger.warn({ url: manifestUrl }, 'Blocked manifest URL (SSRF)');
+                return null;
+            }
+
+            // Fix Sev1 approach: Use resolved IP
+            const originalUrl = new URL(manifestUrl);
+            const requestUrl = securityResult.resolvedIp ?
+                `${originalUrl.protocol}//${securityResult.resolvedIp}${originalUrl.port ? ':' + originalUrl.port : ''}${originalUrl.pathname}${originalUrl.search}${originalUrl.hash}` :
+                manifestUrl;
+
+            headers['Host'] = originalUrl.hostname;
+
+            const response = await axios.get(requestUrl, {
+                headers,
+                timeout: 5000,
+                maxRedirects: 0,
+            });
+
+            if (response.status === 200 && response.data && Array.isArray(response.data.tools)) {
+                return response.data;
+            }
+        } catch (error) {
+            // Ignore manifest errors and fallback to RPC
+            this.logger.debug({ err: error }, 'Failed to fetch manifest (will fallback)');
+        }
+        return null;
     }
 }
