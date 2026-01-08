@@ -142,15 +142,7 @@ async function handleTask(data: any) {
             await p.runPythonAsync(shim);
         }
 
-        // Monitoring output size in a loop if possible, or between steps
-        // For Pyodide, stdout/stderr callbacks are synchronous during runPythonAsync
-        const resultPromise = p.runPythonAsync(code);
-
-        // We can't easily kill runPythonAsync mid-flow from within the same JS thread
-        // if it's a tight loop, but we can check limits after it returns, 
-        // OR rely on the fact that if it's doing IPC or printing, we'll see it.
-
-        const result = await resultPromise;
+        const result = await p.runPythonAsync(code);
 
         if (totalOutputBytes > (limits.maxOutputBytes || 1024 * 1024)) {
             throw new Error('[LIMIT_OUTPUT]');
