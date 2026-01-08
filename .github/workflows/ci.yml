@@ -35,28 +35,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Rebuild native modules
-        run: |
-            pnpm rebuild --recursive
-            
-      - name: Build diagnostics & Fix
-        run: |
-            echo "Searching for isolated-vm.node..."
-            FIND_RESULT=$(find node_modules -name isolated-vm.node)
-            if [ -z "$FIND_RESULT" ]; then
-                echo "isolated-vm.node NOT found. Attempting manual build..."
-                # Find the directory containing package.json for isolated-vm
-                IVM_DIR=$(find node_modules -name package.json | xargs grep -l '"name": "isolated-vm"' | xargs dirname)
-                if [ -n "$IVM_DIR" ]; then
-                    echo "Found isolated-vm in $IVM_DIR. Running node-gyp..."
-                    cd "$IVM_DIR"
-                    npx node-gyp rebuild
-                    cd -
-                else
-                    echo "Could not find isolated-vm directory!"
-                fi
-            else
-                echo "Found isolated-vm.node at: $FIND_RESULT"
-            fi
+        run: pnpm rebuild --recursive
       
       - name: Run tests
         run: pnpm test
@@ -84,28 +63,7 @@ jobs:
           cache: 'pnpm'
       
       - name: Rebuild native modules
-        run: |
-            pnpm rebuild --recursive
-            
-      - name: Build diagnostics & Fix
-        run: |
-            echo "Searching for isolated-vm.node..."
-            FIND_RESULT=$(find node_modules -name isolated-vm.node)
-            if [ -z "$FIND_RESULT" ]; then
-                echo "isolated-vm.node NOT found. Attempting manual build..."
-                # Find the directory containing package.json for isolated-vm
-                IVM_DIR=$(find node_modules -name package.json | xargs grep -l '"name": "isolated-vm"' | xargs dirname)
-                if [ -n "$IVM_DIR" ]; then
-                    echo "Found isolated-vm in $IVM_DIR. Running node-gyp..."
-                    cd "$IVM_DIR"
-                    npx node-gyp rebuild
-                    cd -
-                else
-                    echo "Could not find isolated-vm directory!"
-                fi
-            else
-                echo "Found isolated-vm.node at: $FIND_RESULT"
-            fi
+        run: pnpm rebuild --recursive
       
       - name: Check TypeScript
         run: pnpm exec tsc --noEmit

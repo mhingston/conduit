@@ -102,7 +102,7 @@ export class ConfigService {
 
         // Default opsPort if not set
         if (!this.config.opsPort) {
-            this.config.opsPort = this.config.port + 1;
+            this.config.opsPort = this.config.port === 0 ? 0 : this.config.port + 1;
         }
     }
 

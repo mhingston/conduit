@@ -22,7 +22,7 @@ const defaultLimits = {
     maxLogEntries: 100,
 };
 
-const LOG_FILE = '/Users/markhingston/source/conduit/test-debug.log';
+const LOG_FILE = 'test-debug.log';
 
 describe('Dynamic Tool Calling (E2E)', () => {
     let transport: SocketTransport;
