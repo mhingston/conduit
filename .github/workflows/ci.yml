@@ -26,6 +26,11 @@ jobs:
           node-version: 24.x
           cache: 'pnpm'
       
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 make g++
+      
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
@@ -35,7 +40,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Rebuild native modules
-        run: pnpm rebuild --recursive
+        env:
+          PYTHON: python3
+        run: |
+          # Force rebuild isolated-vm which sometimes fails to build automatically
+          # Find the directory and build it
+          find node_modules/.pnpm -name "isolated-vm" -type d -exec bash -c 'cd "$0" && npm install --build-from-source' {} \;
+          # Also run general rebuild just in case
+          pnpm rebuild --recursive
       
       - name: Run tests
         run: pnpm test

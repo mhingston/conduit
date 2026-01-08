@@ -35,7 +35,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Rebuild native modules
-        run: pnpm rebuild --recursive
+        env:
+          PYTHON: python3
+        run: |
+          find node_modules/.pnpm -name "isolated-vm" -type d -exec bash -c 'cd "$0" && npm install --build-from-source' {} \;
+          pnpm rebuild --recursive
       
       - name: Run tests
         run: pnpm test
