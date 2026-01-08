@@ -48,11 +48,11 @@ describe('RequestController Routing', () => {
         // Create controller with mock execution service
         const mockExecutionService = {
             executeTypeScript: vi.fn().mockImplementation(async (code) => {
-                const bashedCode = code.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '');
-                const hasImports = /^\s*import\s/m.test(bashedCode) ||
-                    /^\s*export\s/m.test(bashedCode) ||
-                    /\bDeno\./.test(bashedCode) ||
-                    /\bDeno\b/.test(bashedCode);
+                const cleanCode = code.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
+                const hasImports = /^\s*import\s/m.test(cleanCode) ||
+                    /^\s*export\s/m.test(cleanCode) ||
+                    /\bDeno\./.test(cleanCode) ||
+                    /\bDeno\b/.test(cleanCode);
 
                 if (!hasImports) {
                     await mockIsolateExecutor.execute();

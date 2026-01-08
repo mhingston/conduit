@@ -111,8 +111,9 @@ describe('Remediation Tests', () => {
 
         it('should NOT be fooled by "import" in string literals', async () => {
             executionService.ipcAddress = '127.0.0.1:1234';
-            await executionService.executeTypeScript('const x = "import this"', {} as any, {} as any);
-            expect(mockDeno.execute).toHaveBeenCalled();
+            const result = await executionService.executeTypeScript('const x = "import this"', {} as any, {} as any);
+            expect(mockIsolate.execute).toHaveBeenCalled();
+            expect(result.stdout).toBe('isolate');
         });
     });
 });

@@ -52,9 +52,12 @@ export class ExecutionService {
         }
 
         // 2. Routing Logic (Isolate vs Deno)
-        const hasImports = /\bimport\b/.test(code) ||
-            /\bexport\b/.test(code) ||
-            /\bDeno\b/.test(code);
+        // Strip simple comments to avoid false positives
+        const cleanCode = code.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '$1');
+        const hasImports = /^\s*import\s/m.test(cleanCode) ||
+            /^\s*export\s/m.test(cleanCode) ||
+            /\bDeno\./.test(cleanCode) ||
+            /\bDeno\b/.test(cleanCode);
 
         // Try to use IsolateExecutor if available and code is simple
         if (!hasImports && this.executorRegistry.has('isolate')) {

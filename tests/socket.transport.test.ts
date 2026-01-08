@@ -39,9 +39,6 @@ describe('SocketTransport', () => {
         concurrencyService = {
             run: vi.fn().mockImplementation((fn) => fn()),
         } as any;
-        concurrencyService = {
-            run: vi.fn().mockImplementation((fn) => fn()),
-        } as any;
 
         const executorRegistry = new ExecutorRegistry();
         // Use real DenoExecutor for this E2E-like test
