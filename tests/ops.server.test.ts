@@ -17,7 +17,7 @@ describe('OpsServer', () => {
     let gatewayService: GatewayService;
 
     beforeEach(() => {
-        configService = new ConfigService({ port: 3000 as any });
+        configService = new ConfigService({ port: 0 as any });
         const securityService = new SecurityService(logger, 'test-token');
         gatewayService = new GatewayService(logger, securityService);
         const executorRegistry = new ExecutorRegistry();
@@ -39,8 +39,9 @@ describe('OpsServer', () => {
     });
 
     it('should respond to /health', async () => {
-        await opsServer.listen();
-        const port = configService.get('port') + 1;
+        const address = await opsServer.listen();
+        const url = new URL(address);
+        const port = url.port;
         const response = await fetch(`http://localhost:${port}/health`);
         const data = await response.json() as any;
         expect(response.status).toBe(200);
@@ -51,8 +52,9 @@ describe('OpsServer', () => {
     });
 
     it('should respond to /metrics in prometheus format', async () => {
-        await opsServer.listen();
-        const port = configService.get('port') + 1;
+        const address = await opsServer.listen();
+        const url = new URL(address);
+        const port = url.port;
         const response = await fetch(`http://localhost:${port}/metrics`);
         expect(response.status).toBe(200);
         expect(response.headers.get('content-type')).toContain('text/plain');

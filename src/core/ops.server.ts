@@ -55,12 +55,13 @@ export class OpsServer {
         });
     }
 
-    async listen() {
+    async listen(): Promise<string> {
         // Use explicit opsPort from config
         const port = this.config.opsPort || 3001;
         try {
             const address = await this.fastify.listen({ port, host: '0.0.0.0' });
             this.logger.info({ address }, 'Ops server listening');
+            return address;
         } catch (err) {
             this.logger.error({ err }, 'Failed to start Ops server');
             throw err;

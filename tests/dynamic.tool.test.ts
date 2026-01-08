@@ -13,6 +13,8 @@ import { PyodideExecutor } from '../src/executors/pyodide.executor.js';
 import { IsolateExecutor } from '../src/executors/isolate.executor.js';
 import { buildDefaultMiddleware } from '../src/core/middleware/middleware.builder.js';
 import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 
 const logger = pino({ level: 'silent' });
 const defaultLimits = {
@@ -22,7 +24,7 @@ const defaultLimits = {
     maxLogEntries: 100,
 };
 
-const LOG_FILE = 'test-debug.log';
+const LOG_FILE = path.join(os.tmpdir(), `conduit-test-debug-${process.pid}.log`);
 
 describe('Dynamic Tool Calling (E2E)', () => {
     let transport: SocketTransport;
