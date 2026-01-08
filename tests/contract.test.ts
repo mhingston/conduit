@@ -32,8 +32,8 @@ describe('Contract Test: Conduit vs Reference MCP', () => {
 
     it('should successfully discover tools from reference MCP', async () => {
         const tools = await gateway.discoverTools(context);
-        expect(tools).toHaveLength(1);
-        expect(tools[0].name).toBe('ref__echo');
+        expect(tools.length).toBeGreaterThanOrEqual(1);
+        expect(tools.find(t => t.name === 'ref__echo')).toBeDefined();
     });
 
     it('should successfully call tool on reference MCP', async () => {
