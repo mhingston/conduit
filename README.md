@@ -6,7 +6,7 @@
 
 <div align="center">
 
-[![npm version](https://badge.fury.io/js/@mhingston%2Fconduit.svg)](https://www.npmjs.com/package/@mhingston/conduit)
+[![npm version](https://badge.fury.io/js/@mhingston5%2Fconduit.svg)](https://www.npmjs.com/package/@mhingston/conduit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js Version](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org/)
@@ -39,6 +39,12 @@ Conduit is optimized for:
 Conduit executes **short-lived, isolated programs** with explicit limits.
 
 ---
+
+## Installation
+
+```bash
+npm install @mhingston5/conduit
+```
 
 ## 5-Minute Quick Start (Code Mode)
 
