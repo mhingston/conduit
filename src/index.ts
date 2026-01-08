@@ -1,6 +1,7 @@
 import { ConfigService } from './core/config.service.js';
 import { createLogger, loggerStorage } from './core/logger.js';
 import { SocketTransport } from './transport/socket.transport.js';
+import { StdioTransport } from './transport/stdio.transport.js';
 import { OpsServer } from './core/ops.server.js';
 import { ConcurrencyService } from './core/concurrency.service.js';
 import { RequestController } from './core/request.controller.js';
@@ -14,14 +15,20 @@ import { ExecutorRegistry } from './core/registries/executor.registry.js';
 import { ExecutionService } from './core/execution.service.js';
 import { buildDefaultMiddleware } from './core/middleware/middleware.builder.js';
 async function main() {
+    // console.error('DEBUG: Starting Conduit main...');
     const configService = new ConfigService();
+    // console.error('DEBUG: Config loaded');
     const logger = createLogger(configService);
 
     const otelService = new OtelService(logger);
     await otelService.start();
 
     await loggerStorage.run({ correlationId: 'system' }, async () => {
-        const securityService = new SecurityService(logger, configService.get('ipcBearerToken'));
+        // Disable auth for Stdio transport (implicitly trusted as it is spawned by the user)
+        const isStdio = configService.get('transport') === 'stdio';
+        const ipcToken = isStdio ? undefined : configService.get('ipcBearerToken');
+
+        const securityService = new SecurityService(logger, ipcToken!);
 
         const gatewayService = new GatewayService(logger, securityService);
         const upstreams = configService.get('upstreams') || [];
@@ -59,9 +66,18 @@ async function main() {
             maxConcurrent: configService.get('maxConcurrent')
         });
 
-        const transport = new SocketTransport(logger, requestController, concurrencyService);
-        const port = configService.get('port');
-        const address = await transport.listen({ port });
+        let transport: SocketTransport | StdioTransport;
+        let address: string;
+
+        if (configService.get('transport') === 'stdio') {
+            transport = new StdioTransport(logger, requestController, concurrencyService);
+            await transport.start();
+            address = 'stdio';
+        } else {
+            transport = new SocketTransport(logger, requestController, concurrencyService);
+            const port = configService.get('port');
+            address = await transport.listen({ port });
+        }
         executionService.ipcAddress = address; // Update IPC address on ExecutionService instead of RequestController
 
         // Pre-warm workers

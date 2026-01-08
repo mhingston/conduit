@@ -13,5 +13,6 @@ export interface AppConfig {
     pyodideMaxPoolSize: number;
     metricsUrl: string;
     opsPort?: number;
+    transport: 'socket' | 'stdio';
     upstreams?: UpstreamInfo[];
 }

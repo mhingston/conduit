@@ -12,7 +12,7 @@ import { resolveAssetPath } from '../core/asset.utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-import { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
+import type { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
 
 export { ExecutionResult };
 

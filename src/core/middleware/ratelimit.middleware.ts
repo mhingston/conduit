@@ -10,7 +10,7 @@ export class RateLimitMiddleware implements Middleware {
         request: JSONRPCRequest,
         context: ExecutionContext,
         next: NextFunction
-    ): Promise<JSONRPCResponse> {
+    ): Promise<JSONRPCResponse | null> {
         const providedToken = request.auth?.bearerToken;
         // Use token if available, otherwise fallback to remote address from context
         const rateLimitKey = providedToken || context.remoteAddress || 'unknown';

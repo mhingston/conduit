@@ -17,7 +17,11 @@ describe('OpsServer', () => {
     let gatewayService: GatewayService;
 
     beforeEach(() => {
-        configService = new ConfigService({ port: 0 as any });
+        configService = new ConfigService({
+            port: 0,
+            opsPort: 0,
+            metricsUrl: 'http://127.0.0.1:0/metrics' // Force fallback by using invalid URL
+        } as any);
         const securityService = new SecurityService(logger, 'test-token');
         gatewayService = new GatewayService(logger, securityService);
         const executorRegistry = new ExecutorRegistry();

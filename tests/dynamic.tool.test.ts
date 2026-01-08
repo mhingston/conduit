@@ -101,12 +101,12 @@ describe('Dynamic Tool Calling (E2E)', () => {
             auth: { bearerToken: testToken }
         }, context);
 
-        fs.appendFileSync(LOG_FILE, `Deno Stdout: ${response.result?.stdout}\n`);
-        fs.appendFileSync(LOG_FILE, `Deno Stderr: ${response.result?.stderr}\n`);
+        fs.appendFileSync(LOG_FILE, `Deno Stdout: ${response!.result?.stdout}\n`);
+        fs.appendFileSync(LOG_FILE, `Deno Stderr: ${response!.result?.stderr}\n`);
 
-        expect(response.error).toBeUndefined();
-        expect(response.result.stdout).toContain('mock__hello');
-        expect(response.result.stdout).toContain('Hello Deno');
+        expect(response!.error).toBeUndefined();
+        expect(response!.result.stdout).toContain('mock__hello');
+        expect(response!.result.stdout).toContain('Hello Deno');
     }, 15000);
 
     it('should allow Python to discover and call tools via SDK', async () => {
@@ -127,13 +127,13 @@ print(f"RESULT:{result}")
             auth: { bearerToken: testToken }
         }, context);
 
-        fs.appendFileSync(LOG_FILE, `Python Stdout: ${response.result?.stdout}\n`);
-        fs.appendFileSync(LOG_FILE, `Python Stderr: ${response.result?.stderr}\n`);
-        if (response.error) fs.appendFileSync(LOG_FILE, `Python Error: ${JSON.stringify(response.error)}\n`);
+        fs.appendFileSync(LOG_FILE, `Python Stdout: ${response!.result?.stdout}\n`);
+        fs.appendFileSync(LOG_FILE, `Python Stderr: ${response!.result?.stderr}\n`);
+        if (response!.error) fs.appendFileSync(LOG_FILE, `Python Error: ${JSON.stringify(response!.error)}\n`);
 
-        expect(response.error).toBeUndefined();
-        expect(response.result.stdout).toContain('mock__hello');
-        expect(response.result.stdout).toContain('Hello Python');
+        expect(response!.error).toBeUndefined();
+        expect(response!.result.stdout).toContain('mock__hello');
+        expect(response!.result.stdout).toContain('Hello Python');
     }, 25000);
 
     it('should reject tools not in allowlist via $raw()', async () => {
@@ -159,12 +159,12 @@ print(f"RESULT:{result}")
             auth: { bearerToken: testToken }
         }, context);
 
-        fs.appendFileSync(LOG_FILE, `Allowlist Stdout: ${response.result?.stdout}\n`);
-        if (response.error) fs.appendFileSync(LOG_FILE, `Allowlist Error: ${JSON.stringify(response.error)}\n`);
+        fs.appendFileSync(LOG_FILE, `Allowlist Stdout: ${response!.result?.stdout}\n`);
+        if (response!.error) fs.appendFileSync(LOG_FILE, `Allowlist Error: ${JSON.stringify(response!.error)}\n`);
 
-        expect(response.error).toBeUndefined();
-        expect(response.result.stdout).toContain('REJECTED');
-        expect(response.result.stdout).toContain('not in the allowlist');
+        expect(response!.error).toBeUndefined();
+        expect(response!.result.stdout).toContain('REJECTED');
+        expect(response!.result.stdout).toContain('not in the allowlist');
     }, 15000);
 
     it('should allow tools matching wildcard pattern', async () => {
@@ -186,11 +186,11 @@ print(f"RESULT:{result}")
             auth: { bearerToken: testToken }
         }, context);
 
-        fs.appendFileSync(LOG_FILE, `Wildcard Stdout: ${response.result?.stdout}\n`);
-        if (response.error) fs.appendFileSync(LOG_FILE, `Wildcard Error: ${JSON.stringify(response.error)}\n`);
+        fs.appendFileSync(LOG_FILE, `Wildcard Stdout: ${response!.result?.stdout}\n`);
+        if (response!.error) fs.appendFileSync(LOG_FILE, `Wildcard Error: ${JSON.stringify(response!.error)}\n`);
 
-        expect(response.error).toBeUndefined();
-        expect(response.result.stdout).toContain('Hello Wildcard');
+        expect(response!.error).toBeUndefined();
+        expect(response!.result.stdout).toContain('Hello Wildcard');
     }, 15000);
 
     it('should allow isolated-vm to discover and call tools via typed SDK', async () => {
@@ -215,11 +215,11 @@ print(f"RESULT:{result}")
             auth: { bearerToken: testToken }
         }, context);
 
-        fs.appendFileSync(LOG_FILE, `Isolate Stdout: ${response.result?.stdout}\n`);
-        if (response.error) fs.appendFileSync(LOG_FILE, `Isolate Error: ${JSON.stringify(response.error)}\n`);
+        fs.appendFileSync(LOG_FILE, `Isolate Stdout: ${response!.result?.stdout}\n`);
+        if (response!.error) fs.appendFileSync(LOG_FILE, `Isolate Error: ${JSON.stringify(response!.error)}\n`);
 
-        expect(response.error).toBeUndefined();
-        expect(response.result.stdout).toContain('Isolate call done');
+        expect(response!.error).toBeUndefined();
+        expect(response!.result.stdout).toContain('Isolate call done');
 
         // Verify tool was called
         expect(mockClient.call).toHaveBeenCalled();

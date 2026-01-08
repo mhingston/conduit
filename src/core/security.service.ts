@@ -1,10 +1,11 @@
 import { Logger } from 'pino';
 import { NetworkPolicyService } from './network.policy.service.js';
-import { SessionManager, Session } from './session.manager.js';
+import { SessionManager } from './session.manager.js';
+import type { Session } from './session.manager.js';
 import { IUrlValidator } from './interfaces/url.validator.interface.js';
 import crypto from 'node:crypto';
 
-export { Session };
+export type { Session };
 
 export class SecurityService implements IUrlValidator {
     private logger: Logger;
@@ -39,6 +40,10 @@ export class SecurityService implements IUrlValidator {
 
     validateIpcToken(token: string): boolean {
         // Fix Sev1: Use timing-safe comparison for sensitive tokens
+        if (!this.ipcToken) {
+            return true;
+        }
+
         const expected = Buffer.from(this.ipcToken);
         const actual = Buffer.from(token);
 

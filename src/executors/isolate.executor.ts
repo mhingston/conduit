@@ -5,7 +5,7 @@ import { ResourceLimits } from '../core/config.service.js';
 import { GatewayService } from '../gateway/gateway.service.js';
 import { ConduitError } from '../core/types.js';
 
-import { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
+import type { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
 
 export { ExecutionResult as IsolateExecutionResult };
 

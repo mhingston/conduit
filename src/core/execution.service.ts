@@ -1,14 +1,14 @@
 import { Logger } from 'pino';
 import { ExecutorRegistry } from './registries/executor.registry.js';
-import { ResourceLimits } from './config.service.js';
+import type { ResourceLimits } from './config.service.js';
 import { GatewayService } from '../gateway/gateway.service.js';
 import { SecurityService } from './security.service.js';
 import { SDKGenerator, toToolBinding } from '../sdk/index.js';
 import { ExecutionContext } from './execution.context.js';
 import { ConduitError } from './types.js';
-import { ExecutionResult } from './interfaces/executor.interface.js';
+import type { ExecutionResult } from './interfaces/executor.interface.js';
 
-export { ExecutionResult };
+export type { ExecutionResult };
 
 export class ExecutionService {
     private logger: Logger;

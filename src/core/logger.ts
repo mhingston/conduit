@@ -54,11 +54,12 @@ export function createLogger(configService: ConfigService) {
                 correlationId: store?.correlationId,
             };
         },
-        transport: configService.get('nodeEnv') === 'development' ? {
-            target: 'pino-pretty',
-            options: {
-                colorize: true,
-            }
-        } : undefined,
-    });
+        // In stdio mode, never use pino-pretty to avoid stdout pollution
+        transport: configService.get('transport') !== 'stdio' && configService.get('nodeEnv') === 'development'
+            ? { target: 'pino-pretty', options: { colorize: true } }
+            : undefined,
+    }, configService.get('transport') === 'stdio'
+        ? pino.destination(2) // Always write to stderr in stdio mode
+        : undefined
+    );
 }

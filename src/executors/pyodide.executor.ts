@@ -9,7 +9,7 @@ import { resolveAssetPath } from '../core/asset.utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-import { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
+import type { Executor, ExecutorConfig, ExecutionResult } from '../core/interfaces/executor.interface.js';
 
 export { ExecutionResult };
 
@@ -113,13 +113,13 @@ export class PyodideExecutor implements Executor {
         const needed = this.maxPoolSize - this.pool.length;
         if (needed <= 0) return;
 
-        console.info(`Pre-warming ${needed} Pyodide workers...`);
+        console.error(`Pre-warming ${needed} Pyodide workers...`);
         const promises = [];
         for (let i = 0; i < needed; i++) {
             promises.push(this.createAndPoolWorker(limits));
         }
         await Promise.all(promises);
-        console.info(`Pyodide pool pre-warmed with ${this.pool.length} workers.`);
+        console.error(`Pyodide pool pre-warmed with ${this.pool.length} workers.`);
     }
 
     private async createAndPoolWorker(limits: ConduitResourceLimits) {

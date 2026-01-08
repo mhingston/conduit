@@ -1,12 +1,12 @@
 import { ExecutionContext } from '../execution.context.js';
 import { JSONRPCRequest, JSONRPCResponse } from '../types.js';
 
-export type NextFunction = () => Promise<JSONRPCResponse>;
+export type NextFunction = () => Promise<JSONRPCResponse | null>;
 
 export interface Middleware {
     handle(
         request: JSONRPCRequest,
         context: ExecutionContext,
         next: NextFunction
-    ): Promise<JSONRPCResponse>;
+    ): Promise<JSONRPCResponse | null>;
 }

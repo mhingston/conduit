@@ -10,11 +10,13 @@ export class AuthMiddleware implements Middleware {
         request: JSONRPCRequest,
         context: ExecutionContext,
         next: NextFunction
-    ): Promise<JSONRPCResponse> {
+    ): Promise<JSONRPCResponse | null> {
         const providedToken = request.auth?.bearerToken || '';
+        const masterToken = this.securityService.getIpcToken();
 
-        const isMaster = providedToken === this.securityService.getIpcToken();
-        const isSession = this.securityService.validateIpcToken(providedToken) && !isMaster;
+        // If no master token is set (stdio mode), treat all requests as master (auth disabled)
+        const isMaster = !masterToken || providedToken === masterToken;
+        const isSession = !isMaster && this.securityService.validateIpcToken(providedToken);
 
         if (!isMaster && !isSession) {
             return {
@@ -29,7 +31,7 @@ export class AuthMiddleware implements Middleware {
 
         // Strict scoping for session tokens
         if (isSession) {
-            const allowedMethods = ['mcp.discoverTools', 'mcp.callTool'];
+            const allowedMethods = ['initialize', 'notifications/initialized', 'mcp.discoverTools', 'mcp.callTool', 'ping'];
             if (!allowedMethods.includes(request.method)) {
                 return {
                     jsonrpc: '2.0',

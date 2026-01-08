@@ -94,7 +94,7 @@ describe('RequestController Routing', () => {
 
         expect(mockIsolateExecutor.execute).toHaveBeenCalled();
         expect(mockDenoExecutor.execute).not.toHaveBeenCalled();
-        expect(result.result.stdout).toBe('isolate');
+        expect(result!.result.stdout).toBe('isolate');
     });
 
     it('should route scripts with imports to DenoExecutor', async () => {
@@ -111,7 +111,7 @@ describe('RequestController Routing', () => {
 
         expect(mockDenoExecutor.execute).toHaveBeenCalled();
         expect(mockIsolateExecutor.execute).not.toHaveBeenCalled();
-        expect(result.result.stdout).toBe('deno');
+        expect(result!.result.stdout).toBe('deno');
     });
 
     it('should route scripts with exports to DenoExecutor', async () => {

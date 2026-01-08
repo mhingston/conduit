@@ -11,12 +11,13 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js Version](https://img.shields.io/badge/node-24-brightgreen.svg)](https://nodejs.org/)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-purple.svg)](https://modelcontextprotocol.io/)
+[![Standard MCP Server](https://img.shields.io/badge/MCP-Server-blue.svg)](https://modelcontextprotocol.io/server)
 
 </div>
 
 ## What is Conduit?
 
-Conduit is a **secure Code Mode execution substrate** for [MCP](https://modelcontextprotocol.io/) agents.
+Conduit is a **secure Code Mode execution substrate** for [MCP](https://modelcontextprotocol.io/) agents. It functions as a **standard MCP server**, allowing native integration with clients like Claude Desktop or VS Code without extra adapters.
 
 It lets agents:
 - generate **real TypeScript or Python code**
@@ -93,6 +94,28 @@ Conduit runs the code, handles the tool call securely, and returns:
   "exitCode": 0
 }
 ```
+
+---
+
+## Example usage with VS Code
+
+```json
+{
+  "mcpServers": {
+    "conduit": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mhingston5/conduit",
+        "--stdio"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
 
 ---
 

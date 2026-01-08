@@ -4,7 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 
+// Silence dotenv logging
+const originalWrite = process.stdout.write;
+// @ts-ignore
+process.stdout.write = () => true;
 dotenv.config();
+process.stdout.write = originalWrite;
 
 import { AppConfig } from './interfaces/app.config.js';
 
@@ -64,6 +69,7 @@ export const ConfigSchema = z.object({
     pyodideMaxPoolSize: z.number().default(3),
     metricsUrl: z.string().default('http://127.0.0.1:9464/metrics'),
     opsPort: z.number().optional(),
+    transport: z.enum(['socket', 'stdio']).default('socket'),
     upstreams: z.array(UpstreamInfoSchema).default([]),
 });
 
@@ -80,6 +86,8 @@ export class ConfigService {
             nodeEnv: process.env.NODE_ENV,
             logLevel: process.env.LOG_LEVEL,
             metricsUrl: process.env.METRICS_URL,
+            ipcBearerToken: process.env.IPC_BEARER_TOKEN,
+            transport: process.argv.includes('--stdio') ? 'stdio' : undefined,
             // upstreams: process.env.UPSTREAMS ? JSON.parse(process.env.UPSTREAMS) : undefined, // Removed per user request
         };
 
@@ -101,8 +109,12 @@ export class ConfigService {
         this.config = result.data as AppConfig;
 
         // Default opsPort if not set
-        if (!this.config.opsPort) {
-            this.config.opsPort = this.config.port === 0 ? 0 : this.config.port + 1;
+        if (this.config.opsPort === undefined) {
+            if (this.config.transport === 'stdio') {
+                this.config.opsPort = 0; // Random port for stdio to avoid conflicts
+            } else {
+                this.config.opsPort = this.config.port === 0 ? 0 : this.config.port + 1;
+            }
         }
     }
 

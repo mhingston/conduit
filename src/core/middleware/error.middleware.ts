@@ -3,7 +3,7 @@ import { JSONRPCRequest, JSONRPCResponse, ConduitError } from '../types.js';
 import { ExecutionContext } from '../execution.context.js';
 
 export class ErrorHandlingMiddleware implements Middleware {
-    async handle(request: JSONRPCRequest, context: ExecutionContext, next: NextFunction): Promise<JSONRPCResponse> {
+    async handle(request: JSONRPCRequest, context: ExecutionContext, next: NextFunction): Promise<JSONRPCResponse | null> {
         try {
             return await next();
         } catch (err: any) {

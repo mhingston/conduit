@@ -7,9 +7,11 @@ import { ExecutionService } from './execution.service.js';
 
 import { Middleware } from './interfaces/middleware.interface.js';
 
-import { ConduitError, JSONRPCRequest, JSONRPCResponse } from './types.js';
+import { ConduitError } from './types.js';
+import type { JSONRPCRequest, JSONRPCResponse } from './types.js';
 
-export { ConduitError, JSONRPCRequest, JSONRPCResponse };
+export { ConduitError };
+export type { JSONRPCRequest, JSONRPCResponse };
 
 export class RequestController {
     private logger: Logger;
@@ -36,14 +38,14 @@ export class RequestController {
 
 
 
-    async handleRequest(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
+    async handleRequest(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse | null> {
         return this.executePipeline(request, context);
     }
 
-    private async executePipeline(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
+    private async executePipeline(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse | null> {
         let index = -1;
 
-        const dispatch = async (i: number): Promise<JSONRPCResponse> => {
+        const dispatch = async (i: number): Promise<JSONRPCResponse | null> => {
             if (i <= index) throw new Error('next() called multiple times');
             index = i;
 
@@ -90,7 +92,7 @@ export class RequestController {
         }
     }
 
-    private async finalHandler(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
+    private async finalHandler(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse | null> {
         const { method, params, id } = request;
         // Logging and metrics handled by middlewares now
 
@@ -99,6 +101,7 @@ export class RequestController {
         // Or specific logic.
 
         switch (method) {
+            case 'tools/list': // Standard MCP method name
             case 'mcp.discoverTools':
                 return this.handleDiscoverTools(params, context, id);
             case 'mcp.listToolPackages':
@@ -117,6 +120,12 @@ export class RequestController {
                 return this.handleExecutePython(params, context, id);
             case 'mcp.executeIsolate':
                 return this.handleExecuteIsolate(params, context, id);
+            case 'initialize':
+                return this.handleInitialize(params, context, id);
+            case 'notifications/initialized':
+                return null; // Notifications don't get responses per MCP spec
+            case 'ping':
+                return { jsonrpc: '2.0', id, result: {} };
             default:
                 // metrics.recordExecutionEnd is handled by LoggingMiddleware??
                 // Wait, if 404, LoggingMiddleware records execution end?
@@ -127,11 +136,19 @@ export class RequestController {
 
     private async handleDiscoverTools(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
         const tools = await this.gatewayService.discoverTools(context);
+
+        // Filter to only MCP-standard fields for compatibility with strict clients
+        const standardizedTools = tools.map(t => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+        }));
+
         return {
             jsonrpc: '2.0',
             id,
             result: {
-                tools,
+                tools: standardizedTools,
             },
         };
     }
@@ -241,6 +258,31 @@ export class RequestController {
                 stderr: result.stderr,
                 exitCode: result.exitCode,
             },
+        };
+    }
+
+    private async handleInitialize(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
+        // Echo back the client's protocol version for compatibility, or use latest if not provided
+        const clientVersion = params?.protocolVersion || '2025-06-18';
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+                protocolVersion: clientVersion,
+                capabilities: {
+                    tools: {
+                        listChanged: true
+                    },
+                    resources: {
+                        listChanged: true,
+                        subscribe: true
+                    }
+                },
+                serverInfo: {
+                    name: 'conduit',
+                    version: process.env.npm_package_version || '1.1.0'
+                }
+            }
         };
     }
 

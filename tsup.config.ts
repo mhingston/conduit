@@ -10,10 +10,10 @@ export default defineConfig({
     splitting: false,
     sourcemap: true,
     clean: true,
-    loader: {
-        '.py': 'text',
-        '.ts': 'text', // We want the shim source as text
-    },
+    // loader: {
+    //     '.py': 'text',
+    //     '.ts': 'text', // REMOVED: This was causing src/index.ts to be compiled as a string!
+    // },
     // Ensure assets are included
     // We can use the 'onSuccess' hook to copy them or just include them in the bundle
     // But the spec says 'into dist/assets', which implies they should be separate files.

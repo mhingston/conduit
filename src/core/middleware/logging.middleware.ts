@@ -4,7 +4,7 @@ import { ExecutionContext } from '../execution.context.js';
 import { metrics } from '../metrics.service.js';
 
 export class LoggingMiddleware implements Middleware {
-    async handle(request: JSONRPCRequest, context: ExecutionContext, next: NextFunction): Promise<JSONRPCResponse> {
+    async handle(request: JSONRPCRequest, context: ExecutionContext, next: NextFunction): Promise<JSONRPCResponse | null> {
         const { method, id } = request;
         const childLogger = context.logger.child({ method, id });
         context.logger = childLogger; // Update context logger for downstream
