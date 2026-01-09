@@ -92,7 +92,7 @@ describe('V1 Hardening Tests', () => {
         const response = await sendRequest({
             jsonrpc: '2.0',
             id: 1,
-            method: 'mcp.executeTypeScript',
+            method: 'mcp_execute_typescript',
             params: { code: 'console.log("hi")' },
             auth: { bearerToken: sessionToken }
         });
@@ -114,7 +114,7 @@ describe('V1 Hardening Tests', () => {
         const response = await sendRequest({
             jsonrpc: '2.0',
             id: 2,
-            method: 'mcp.discoverTools',
+            method: 'mcp_discover_tools',
             params: {},
             auth: { bearerToken: sessionToken }
         });
@@ -127,7 +127,7 @@ describe('V1 Hardening Tests', () => {
         const response = await sendRequest({
             jsonrpc: '2.0',
             id: 3,
-            method: 'mcp.executeTypeScript',
+            method: 'mcp_execute_typescript',
             params: { code: 'import * as os from "os"; console.log("hi")' },
             auth: { bearerToken: 'master-token' }
         });

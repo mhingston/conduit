@@ -12,7 +12,7 @@ import addFormats from 'ajv-formats';
 
 const BUILT_IN_TOOLS: ToolSchema[] = [
     {
-        name: 'mcp.executeTypeScript',
+        name: 'mcp_execute_typescript',
         description: 'Executes TypeScript code in a secure sandbox with access to `tools.*` SDK.',
         inputSchema: {
             type: 'object',
@@ -31,7 +31,7 @@ const BUILT_IN_TOOLS: ToolSchema[] = [
         }
     },
     {
-        name: 'mcp.executePython',
+        name: 'mcp_execute_python',
         description: 'Executes Python code in a secure sandbox with access to `tools.*` SDK.',
         inputSchema: {
             type: 'object',
@@ -50,7 +50,7 @@ const BUILT_IN_TOOLS: ToolSchema[] = [
         }
     },
     {
-        name: 'mcp.executeIsolate',
+        name: 'mcp_execute_isolate',
         description: 'Executes JavaScript code in a high-speed V8 isolate (no Deno/Node APIs).',
         inputSchema: {
             type: 'object',

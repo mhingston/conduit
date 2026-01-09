@@ -96,7 +96,7 @@ describe('Dynamic Tool Calling (E2E)', () => {
         const response = await requestController.handleRequest({
             jsonrpc: '2.0',
             id: 1,
-            method: 'mcp.executeTypeScript',
+            method: 'mcp_execute_typescript',
             params: { code },
             auth: { bearerToken: testToken }
         }, context);
@@ -122,7 +122,7 @@ print(f"RESULT:{result}")
         const response = await requestController.handleRequest({
             jsonrpc: '2.0',
             id: 2,
-            method: 'mcp.executePython',
+            method: 'mcp_execute_python',
             params: { code },
             auth: { bearerToken: testToken }
         }, context);
@@ -151,7 +151,7 @@ print(f"RESULT:{result}")
         const response = await requestController.handleRequest({
             jsonrpc: '2.0',
             id: 3,
-            method: 'mcp.executeTypeScript',
+            method: 'mcp_execute_typescript',
             params: {
                 code,
                 allowedTools: ['mock.hello']  // Only mock.hello allowed
@@ -178,7 +178,7 @@ print(f"RESULT:{result}")
         const response = await requestController.handleRequest({
             jsonrpc: '2.0',
             id: 4,
-            method: 'mcp.executeTypeScript',
+            method: 'mcp_execute_typescript',
             params: {
                 code,
                 allowedTools: ['mock.*']  // Wildcard allows all mock tools
@@ -206,7 +206,7 @@ print(f"RESULT:{result}")
         const response = await requestController.handleRequest({
             jsonrpc: '2.0',
             id: 5,
-            method: 'mcp.executeIsolate',
+            method: 'mcp_execute_isolate',
             params: {
                 code,
                 allowedTools: ['mock.*'],

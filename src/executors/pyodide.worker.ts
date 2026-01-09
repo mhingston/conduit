@@ -131,11 +131,11 @@ async function handleTask(data: any) {
         };
 
         (p as any).globals.set('discover_mcp_tools_js', (options: any) => {
-            return sendIPCRequest('mcp.discoverTools', options);
+            return sendIPCRequest('mcp_discover_tools', options);
         });
 
         (p as any).globals.set('call_mcp_tool_js', (name: string, args: any) => {
-            return sendIPCRequest('mcp.callTool', { name, arguments: args });
+            return sendIPCRequest('mcp_call_tool', { name, arguments: args });
         });
 
         if (shim) {

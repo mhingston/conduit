@@ -149,7 +149,7 @@ describe('E2E: Stdio Upstream Integration', () => {
         const response = await sendRequest({
             jsonrpc: '2.0',
             id: '1',
-            method: 'mcp.discoverTools',
+            method: 'mcp_discover_tools',
             params: {},
             auth: { bearerToken: ipcToken },
         });
@@ -169,7 +169,7 @@ describe('E2E: Stdio Upstream Integration', () => {
         const discoverResponse = await sendRequest({
             jsonrpc: '2.0',
             id: '1',
-            method: 'mcp.discoverTools',
+            method: 'mcp_discover_tools',
             params: {},
             auth: { bearerToken: ipcToken },
         });
@@ -181,7 +181,7 @@ describe('E2E: Stdio Upstream Integration', () => {
         const callResponse = await sendRequest({
             jsonrpc: '2.0',
             id: '2',
-            method: 'mcp.callTool',
+            method: 'mcp_call_tool',
             params: {
                 name: echoTool.name,
                 arguments: { message: 'Hello from E2E test!' },

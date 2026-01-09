@@ -102,23 +102,24 @@ export class RequestController {
 
         switch (method) {
             case 'tools/list': // Standard MCP method name
-            case 'mcp.discoverTools':
+            case 'mcp_discover_tools':
                 return this.handleDiscoverTools(params, context, id);
-            case 'mcp.listToolPackages':
+            case 'mcp_list_tool_packages':
                 return this.handleListToolPackages(params, context, id);
-            case 'mcp.listToolStubs':
+            case 'mcp_list_tool_stubs':
                 return this.handleListToolStubs(params, context, id);
-            case 'mcp.readToolSchema':
+            case 'mcp_read_tool_schema':
                 return this.handleReadToolSchema(params, context, id);
-            case 'mcp.validateTool':
+            case 'mcp_validate_tool':
                 return this.handleValidateTool(request, context);
-            case 'mcp.callTool':
+            case 'mcp_call_tool':
+            case 'tools/call':
                 return this.handleCallTool(params, context, id);
-            case 'mcp.executeTypeScript':
+            case 'mcp_execute_typescript':
                 return this.handleExecuteTypeScript(params, context, id);
-            case 'mcp.executePython':
+            case 'mcp_execute_python':
                 return this.handleExecutePython(params, context, id);
-            case 'mcp.executeIsolate':
+            case 'mcp_execute_isolate':
                 return this.handleExecuteIsolate(params, context, id);
             case 'initialize':
                 return this.handleInitialize(params, context, id);
@@ -209,6 +210,17 @@ export class RequestController {
 
     private async handleCallTool(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
         const { name, arguments: toolArgs } = params;
+
+        // Route built-in tools to their specific handlers
+        switch (name) {
+            case 'mcp_execute_typescript':
+                return this.handleExecuteTypeScript(toolArgs, context, id);
+            case 'mcp_execute_python':
+                return this.handleExecutePython(toolArgs, context, id);
+            case 'mcp_execute_isolate':
+                return this.handleExecuteIsolate(toolArgs, context, id);
+        }
+
         const response = await this.gatewayService.callTool(name, toolArgs, context);
         return { ...response, id };
     }

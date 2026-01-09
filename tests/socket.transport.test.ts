@@ -100,7 +100,7 @@ describe('SocketTransport', () => {
         });
     }
 
-    it('should handle mcp.executeTypeScript request', async () => {
+    it('should handle mcp_execute_typescript request', async () => {
         transport = new SocketTransport(logger, requestController, concurrencyService);
         const address = await transport.listen({ port: 0 });
         const portMatch = address.match(/:(\d+)$/);
@@ -112,7 +112,7 @@ describe('SocketTransport', () => {
                 const request = {
                     jsonrpc: '2.0',
                     id: 1,
-                    method: 'mcp.executeTypeScript',
+                    method: 'mcp_execute_typescript',
                     params: { code: 'console.log("hello E2E")' },
                     auth: { bearerToken: testToken }
                 };
@@ -153,7 +153,7 @@ describe('SocketTransport', () => {
                 const request = {
                     jsonrpc: '2.0',
                     id: 12345,
-                    method: 'mcp.executeTypeScript',
+                    method: 'mcp_execute_typescript',
                     params: { code: 'console.log("hello")' },
                     auth: { bearerToken: testToken }
                 };

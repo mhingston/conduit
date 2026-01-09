@@ -32,17 +32,17 @@ describe('GatewayService', () => {
 
         const tools = await gateway.discoverTools(context);
         expect(tools.length).toBeGreaterThanOrEqual(3);
-        expect(tools.find(t => t.name === 'mcp.executeTypeScript')).toBeDefined();
-        expect(tools.find(t => t.name === 'mcp.executePython')).toBeDefined();
-        expect(tools.find(t => t.name === 'mcp.executeIsolate')).toBeDefined();
+        expect(tools.find(t => t.name === 'mcp_execute_typescript')).toBeDefined();
+        expect(tools.find(t => t.name === 'mcp_execute_python')).toBeDefined();
+        expect(tools.find(t => t.name === 'mcp_execute_isolate')).toBeDefined();
         expect(tools.find(t => t.name === 'u1__t1')).toBeDefined();
         expect(tools.find(t => t.name === 'u2__t2')).toBeDefined();
     });
 
     it('should return schema for built-in tools', async () => {
-        const schema = await gateway.getToolSchema('mcp.executeTypeScript', context);
+        const schema = await gateway.getToolSchema('mcp_execute_typescript', context);
         expect(schema).toBeDefined();
-        expect(schema?.name).toBe('mcp.executeTypeScript');
+        expect(schema?.name).toBe('mcp_execute_typescript');
         expect(schema?.inputSchema.required).toContain('code');
     });
 

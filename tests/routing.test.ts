@@ -84,7 +84,7 @@ describe('RequestController Routing', () => {
         const result = await controller.handleRequest({
             jsonrpc: '2.0',
             id: 1,
-            method: 'mcp.executeTypeScript',
+            method: 'mcp_execute_typescript',
             params: {
                 code: 'console.log("simple")',
                 limits: {}
@@ -101,7 +101,7 @@ describe('RequestController Routing', () => {
         const result = await controller.handleRequest({
             jsonrpc: '2.0',
             id: 1,
-            method: 'mcp.executeTypeScript',
+            method: 'mcp_execute_typescript',
             params: {
                 code: 'import { foo } from "bar"; console.log(foo)',
                 limits: {}
@@ -118,7 +118,7 @@ describe('RequestController Routing', () => {
         const result = await controller.handleRequest({
             jsonrpc: '2.0',
             id: 1,
-            method: 'mcp.executeTypeScript',
+            method: 'mcp_execute_typescript',
             params: {
                 code: 'export const foo = "bar"',
                 limits: {}
@@ -134,7 +134,7 @@ describe('RequestController Routing', () => {
         const result = await controller.handleRequest({
             jsonrpc: '2.0',
             id: 1,
-            method: 'mcp.executeTypeScript',
+            method: 'mcp_execute_typescript',
             params: {
                 code: 'console.log(Deno.version)',
                 limits: {}
@@ -145,4 +145,24 @@ describe('RequestController Routing', () => {
         expect(mockDenoExecutor.execute).toHaveBeenCalled();
         expect(mockIsolateExecutor.execute).not.toHaveBeenCalled();
     });
+
+    it('should route tools/call for built-in tools', async () => {
+        const result = await controller.handleRequest({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: {
+                name: 'mcp_execute_typescript',
+                arguments: {
+                    code: 'console.log("via tools/call")',
+                    limits: {}
+                }
+            },
+            auth: { bearerToken: 'master-token' }
+        }, mockContext);
+
+        expect(mockIsolateExecutor.execute).toHaveBeenCalled();
+        expect(result!.result.stdout).toBe('isolate');
+    });
+
 });

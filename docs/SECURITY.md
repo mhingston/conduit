@@ -27,7 +27,7 @@ Conduit enforces strict Server-Side Request Forgery (SSRF) protections on upstre
 ## Authorization
 
 - **Master Token**: Full access to all methods (set via `IPC_BEARER_TOKEN`).
-- **Session Tokens**: Generated per-execution, restricted to `mcp.discoverTools` and `mcp.callTool` only.
+- **Session Tokens**: Generated per-execution, restricted to `mcp_discover_tools` and `mcp_call_tool` only.
 - **Tool Allowlisting**: Per-request scope limits which tools code can discover/call (e.g., `["github.*"]`).
 
 ## Runtime Security

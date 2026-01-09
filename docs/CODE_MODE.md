@@ -28,6 +28,6 @@ Because logic executes in a sandbox, you can enforce limits on loops, memory, an
 ## Implementation in Conduit
 
 Conduit provides:
-1. **`executeTypeScript` / `executePython`**: The entry points.
+1. **`mcp_execute_typescript` / `mcp_execute_python`**: The entry points.
 2. **`tools.*` SDK**: A dynamically generated client injected into the runtime.
 3. **Sandboxes**: Deno, Pyodide, and isolated-vm to run the code safely.

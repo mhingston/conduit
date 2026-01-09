@@ -81,12 +81,12 @@ async function sendIPCRequest(method: string, params: any) {
 
 // Internal tool call function - used by generated SDK
 const __internalCallTool = async (name: string, params: any) => {
-    return await sendIPCRequest('mcp.callTool', { name, arguments: params });
+    return await sendIPCRequest('mcp_call_tool', { name, arguments: params });
 };
 
 // Tool discovery - still available for dynamic scenarios
 (globalThis as any).discoverMCPTools = async (options: any) => {
-    const result = await sendIPCRequest('mcp.discoverTools', options);
+    const result = await sendIPCRequest('mcp_discover_tools', options);
     return result.tools || [];
 };
 

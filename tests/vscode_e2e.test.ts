@@ -24,7 +24,7 @@ describe('E2E: Native Stdio Mode', () => {
         const request = {
             jsonrpc: '2.0',
             id: '1',
-            method: 'mcp.discoverTools',
+            method: 'mcp_discover_tools',
             params: {},
             // Use a dummy token, security service might reject if auth is enabled but 
             // the default config generates a random token.

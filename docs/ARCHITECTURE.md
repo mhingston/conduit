@@ -12,7 +12,7 @@ Conduit is built with a modular architecture, designed to be secure, observable,
 
 ## Detailed Flow
 
-1. **Client Request**: A client (like VS Code or Claude Desktop) sends a JSON-RPC request (`mcp.executeTypeScript`).
+1. **Client Request**: A client (like VS Code or Claude Desktop) sends a JSON-RPC request (`mcp_execute_typescript`).
 2. **Transportation**: The request is received via `SocketTransport` (TCP/UDS/Pipe).
 3. **Dispatch**: `RequestController` validates the request and session tokens.
 4. **Tool Discovery**: `GatewayService` aggregates tools from all upstream MCP servers.

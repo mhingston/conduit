@@ -31,7 +31,7 @@ export class AuthMiddleware implements Middleware {
 
         // Strict scoping for session tokens
         if (isSession) {
-            const allowedMethods = ['initialize', 'notifications/initialized', 'mcp.discoverTools', 'mcp.callTool', 'ping'];
+            const allowedMethods = ['initialize', 'notifications/initialized', 'mcp_discover_tools', 'mcp_call_tool', 'ping', 'tools/list', 'tools/call'];
             if (!allowedMethods.includes(request.method)) {
                 return {
                     jsonrpc: '2.0',
