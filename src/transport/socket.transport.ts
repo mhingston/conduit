@@ -1,4 +1,5 @@
 import net from 'node:net';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Logger } from 'pino';
@@ -46,9 +47,13 @@ export class SocketTransport {
 
                 // Cleanup existing socket if needed (unlikely on Windows, but good for Unix)
                 if (os.platform() !== 'win32' && path.isAbsolute(socketPath)) {
-                    // We rely on caller or deployment to clean up, or error out. 
-                    // Trying to unlink here might be dangerous if we don't own it.
-                    // But strictly, we should just listen.
+                    try {
+                        fs.unlinkSync(socketPath);
+                    } catch (error: any) {
+                        if (error.code !== 'ENOENT') {
+                            this.logger.warn({ err: error, socketPath }, 'Failed to unlink socket before binding');
+                        }
+                    }
                 }
 
                 this.server.listen(socketPath, () => {

@@ -209,6 +209,7 @@ export class RequestController {
     }
 
     private async handleCallTool(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
+        if (!params) return this.errorResponse(id, -32602, 'Missing parameters');
         const { name, arguments: toolArgs } = params;
 
         // Route built-in tools to their specific handlers
@@ -226,6 +227,7 @@ export class RequestController {
     }
 
     private async handleExecuteTypeScript(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
+        if (!params) return this.errorResponse(id, -32602, 'Missing parameters');
         const { code, limits, allowedTools } = params;
 
         if (Array.isArray(allowedTools)) {
@@ -250,6 +252,7 @@ export class RequestController {
     }
 
     private async handleExecutePython(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
+        if (!params) return this.errorResponse(id, -32602, 'Missing parameters');
         const { code, limits, allowedTools } = params;
 
         if (Array.isArray(allowedTools)) {
@@ -299,6 +302,7 @@ export class RequestController {
     }
 
     private async handleExecuteIsolate(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
+        if (!params) return this.errorResponse(id, -32602, 'Missing parameters');
         const { code, limits, allowedTools } = params;
 
         if (Array.isArray(allowedTools)) {

@@ -9,11 +9,11 @@ export type { Session };
 
 export class SecurityService implements IUrlValidator {
     private logger: Logger;
-    private ipcToken: string;
+    private ipcToken: string | undefined;
     private networkPolicy: NetworkPolicyService;
     private sessionManager: SessionManager;
 
-    constructor(logger: Logger, ipcToken: string) {
+    constructor(logger: Logger, ipcToken: string | undefined) {
         this.logger = logger;
         this.ipcToken = ipcToken;
         this.networkPolicy = new NetworkPolicyService(logger);
@@ -67,7 +67,7 @@ export class SecurityService implements IUrlValidator {
     }
 
 
-    getIpcToken(): string {
+    getIpcToken(): string | undefined {
         return this.ipcToken;
     }
 }

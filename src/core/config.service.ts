@@ -2,6 +2,7 @@ import { z } from 'zod';
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import yaml from 'js-yaml';
 
 // Silence dotenv logging
@@ -65,7 +66,7 @@ export const ConfigSchema = z.object({
     secretRedactionPatterns: z.array(z.string()).default([
         '[A-Za-z0-9-_]{20,}', // Default pattern from spec
     ]),
-    ipcBearerToken: z.string().optional().default(() => Math.random().toString(36).substring(7)),
+    ipcBearerToken: z.string().optional().default(() => crypto.randomUUID()),
     maxConcurrent: z.number().default(10),
     denoMaxPoolSize: z.number().default(10),
     pyodideMaxPoolSize: z.number().default(3),
