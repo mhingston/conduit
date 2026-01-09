@@ -25,13 +25,10 @@ describe('AuthService', () => {
     it('should refresh OAuth2 token when expired', async () => {
         const creds: any = {
             type: 'oauth2',
-            oauth2: {
-                clientId: 'id',
-                clientSecret: 'secret',
-                tokenUrl: 'http://token',
-                refreshToken: 'refresh',
-                expiresAt: Date.now() - 1000, // Expired
-            },
+            clientId: 'id',
+            clientSecret: 'secret',
+            tokenUrl: 'http://token',
+            refreshToken: 'refresh',
         };
 
         (axios.post as any).mockResolvedValue({
@@ -50,12 +47,10 @@ describe('AuthService', () => {
         // First call - will trigger refresh
         const creds: any = {
             type: 'oauth2',
-            oauth2: {
-                clientId: 'id',
-                clientSecret: 'secret',
-                tokenUrl: 'http://token',
-                refreshToken: 'refresh',
-            },
+            clientId: 'id',
+            clientSecret: 'secret',
+            tokenUrl: 'http://token',
+            refreshToken: 'refresh',
         };
 
         (axios.post as any).mockResolvedValue({

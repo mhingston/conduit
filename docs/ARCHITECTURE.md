@@ -16,7 +16,7 @@ Conduit is built with a modular architecture, designed to be secure, observable,
 2. **Transportation**: The request is received via `SocketTransport` (TCP/UDS/Pipe).
 3. **Dispatch**: `RequestController` validates the request and session tokens.
 4. **Tool Discovery**: `GatewayService` aggregates tools from all upstream MCP servers.
-5. **SDK Generation**: The `SdkService` generates a type-safe SDK (`tools.*`) based on discovered schemas.
+5. **SDK Generation**: The `ExecutionService` uses the `SDKGenerator` to generate a type-safe SDK (`tools.*`) based on discovered schemas.
 6. **Execution**:
     - **Deno**: Spawns a Deno subprocess with limited permissions.
     - **Browser-style (In-Process)**: Uses `isolated-vm` for high-speed JS logic.

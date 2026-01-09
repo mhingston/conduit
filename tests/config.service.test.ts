@@ -67,4 +67,35 @@ describe('ConfigService', () => {
         existsSpy.mockRestore();
         readSpy.mockRestore();
     });
+
+    it('should parse OAuth2 credentials correctly', () => {
+        const existsSpy = vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => p.endsWith('conduit.test.yaml'));
+        const readSpy = vi.spyOn(fs, 'readFileSync').mockReturnValue(`
+upstreams:
+  - id: test-oauth
+    type: http
+    url: http://upstream
+    credentials:
+      type: oauth2
+      clientId: my-id
+      clientSecret: my-secret
+      tokenUrl: http://token
+      refreshToken: my-refresh
+`);
+
+        vi.stubEnv('CONFIG_FILE', 'conduit.test.yaml');
+        const configService = new ConfigService();
+        const upstreams = configService.get('upstreams');
+        expect(upstreams).toHaveLength(1);
+        expect(upstreams![0].credentials).toEqual({
+            type: 'oauth2',
+            clientId: 'my-id',
+            clientSecret: 'my-secret',
+            tokenUrl: 'http://token',
+            refreshToken: 'my-refresh'
+        });
+
+        existsSpy.mockRestore();
+        readSpy.mockRestore();
+    });
 });

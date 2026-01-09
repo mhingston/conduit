@@ -7,12 +7,10 @@ export interface UpstreamCredentials {
     type: AuthType;
     apiKey?: string;
     bearerToken?: string;
-    oauth2?: {
-        clientId: string;
-        clientSecret: string;
-        tokenUrl: string;
-        refreshToken: string;
-    };
+    clientId?: string;
+    clientSecret?: string;
+    tokenUrl?: string;
+    refreshToken?: string;
 }
 
 interface CachedToken {
@@ -45,10 +43,11 @@ export class AuthService {
     }
 
     private async getOAuth2Token(creds: UpstreamCredentials): Promise<string> {
-        if (!creds.oauth2) throw new Error('OAuth2 credentials missing');
+        if (!creds.tokenUrl || !creds.clientId) {
+            throw new Error('OAuth2 credentials missing required fields (tokenUrl, clientId)');
+        }
 
-        const { oauth2 } = creds;
-        const cacheKey = `${oauth2.clientId}:${oauth2.tokenUrl}`;
+        const cacheKey = `${creds.clientId}:${creds.tokenUrl}`;
 
         // Check cache first (with 30s buffer)
         const cached = this.tokenCache.get(cacheKey);
@@ -74,17 +73,18 @@ export class AuthService {
     }
 
     private async doRefresh(creds: UpstreamCredentials, cacheKey: string): Promise<string> {
-        const { oauth2 } = creds;
-        if (!oauth2) throw new Error('OAuth2 credentials missing');
+        if (!creds.tokenUrl || !creds.refreshToken || !creds.clientId || !creds.clientSecret) {
+            throw new Error('OAuth2 credentials missing required fields for refresh');
+        }
 
-        this.logger.info('Refreshing OAuth2 token');
+        this.logger.info({ tokenUrl: creds.tokenUrl, clientId: creds.clientId }, 'Refreshing OAuth2 token');
 
         try {
-            const response = await axios.post(oauth2.tokenUrl, {
+            const response = await axios.post(creds.tokenUrl, {
                 grant_type: 'refresh_token',
-                refresh_token: oauth2.refreshToken,
-                client_id: oauth2.clientId,
-                client_secret: oauth2.clientSecret,
+                refresh_token: creds.refreshToken,
+                client_id: creds.clientId,
+                client_secret: creds.clientSecret,
             });
 
             const { access_token, expires_in } = response.data;
@@ -97,8 +97,9 @@ export class AuthService {
 
             return `Bearer ${access_token}`;
         } catch (err: any) {
-            this.logger.error({ err: err.message }, 'Failed to refresh OAuth2 token');
-            throw new Error(`OAuth2 refresh failed: ${err.message}`);
+            const errorMsg = err.response?.data?.error_description || err.response?.data?.error || err.message;
+            this.logger.error({ err: errorMsg }, 'Failed to refresh OAuth2 token');
+            throw new Error(`OAuth2 refresh failed: ${errorMsg}`);
         }
     }
 }

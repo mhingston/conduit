@@ -21,7 +21,7 @@ Conduit is a **secure Code Mode execution substrate** for [MCP](https://modelcon
 
 It lets agents:
 - generate **real TypeScript or Python code**
-- call tools via **language-native APIs** (`tools.github.createIssue()`)
+- call tools via **language-native APIs** (`tools.github.create_issue()`)
 - run that code in **isolated, resource-governed sandboxes**
 - without exposing credentials or the host environment
 
@@ -66,6 +66,15 @@ upstreams:
   - id: github
     type: http
     url: "http://localhost:3000/mcp"
+  - id: slack
+    type: http
+    url: "https://your-mcp-server/mcp"
+    credentials:
+      type: oauth2
+      clientId: ${SLACK_CLIENT_ID}
+      clientSecret: ${SLACK_CLIENT_SECRET}
+      tokenUrl: "https://slack.com/api/oauth.v2.access"
+      refreshToken: ${SLACK_REFRESH_TOKEN}
     # Or use local stdio for testing:
   - id: filesystem
     type: stdio
@@ -73,7 +82,22 @@ upstreams:
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 ```
 
-### 3. Execute TypeScript
+### 3. OAuth Setup Helper
+
+If your upstream requires an initial OAuth flow (like Jira), you can use the built-in helper to obtain a refresh token:
+
+```bash
+npx conduit auth \
+  --client-id <id> \
+  --client-secret <secret> \
+  --auth-url <url> \
+  --token-url <url> \
+  --scopes <scopes>
+```
+
+This will start a temporary local server, open your browser for authorization, and print the generated `credentials` block for your `conduit.yaml`.
+
+### 4. Execute TypeScript
 
 Using any [MCP Client](https://modelcontextprotocol.io/clients) (Claude Desktop, etc.), call `mcp_execute_typescript`:
 
@@ -83,7 +107,7 @@ const result = await tools.filesystem.list_allowed_directories();
 console.log("Files:", result);
 ```
 
-### 4. Result
+### 5. Result
 
 Conduit runs the code, handles the tool call securely, and returns:
 

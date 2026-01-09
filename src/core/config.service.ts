@@ -22,12 +22,14 @@ export const ResourceLimitsSchema = z.object({
 });
 
 export const UpstreamCredentialsSchema = z.object({
-    type: z.enum(['oauth2', 'apikey']), // Add other types as needed
+    type: z.enum(['oauth2', 'apiKey', 'bearer']), // Align with AuthType
     clientId: z.string().optional(),
     clientSecret: z.string().optional(),
     tokenUrl: z.string().optional(),
+    refreshToken: z.string().optional(),
     scopes: z.array(z.string()).optional(),
     apiKey: z.string().optional(),
+    bearerToken: z.string().optional(),
     headerName: z.string().optional(),
 });
 

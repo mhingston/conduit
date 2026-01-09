@@ -1,3 +1,4 @@
+import { Command } from 'commander';
 import { ConfigService } from './core/config.service.js';
 import { createLogger, loggerStorage } from './core/logger.js';
 import { SocketTransport } from './transport/socket.transport.js';
@@ -14,10 +15,56 @@ import { IsolateExecutor } from './executors/isolate.executor.js';
 import { ExecutorRegistry } from './core/registries/executor.registry.js';
 import { ExecutionService } from './core/execution.service.js';
 import { buildDefaultMiddleware } from './core/middleware/middleware.builder.js';
-async function main() {
-    // console.error('DEBUG: Starting Conduit main...');
+import { handleAuth } from './auth.cmd.js';
+
+const program = new Command();
+
+program
+    .name('conduit')
+    .description('A secure Code Mode execution substrate for MCP agents')
+    .version('1.0.0');
+
+program
+    .command('serve', { isDefault: true })
+    .description('Start the Conduit server')
+    .option('--stdio', 'Use stdio transport')
+    .action(async (options) => {
+        try {
+            await startServer();
+        } catch (err) {
+            console.error('Failed to start Conduit:', err);
+            process.exit(1);
+        }
+    });
+
+program
+    .command('auth')
+    .description('Help set up OAuth for an upstream MCP server')
+    .requiredOption('--client-id <id>', 'OAuth Client ID')
+    .requiredOption('--client-secret <secret>', 'OAuth Client Secret')
+    .requiredOption('--auth-url <url>', 'OAuth Authorization URL')
+    .requiredOption('--token-url <url>', 'OAuth Token URL')
+    .option('--scopes <scopes>', 'OAuth Scopes (comma separated)')
+    .option('--port <port>', 'Port for the local callback server', '3333')
+    .action(async (options) => {
+        try {
+            await handleAuth({
+                clientId: options.clientId,
+                clientSecret: options.clientSecret,
+                authUrl: options.authUrl,
+                tokenUrl: options.tokenUrl,
+                scopes: options.scopes,
+                port: parseInt(options.port, 10),
+            });
+            console.log('\nSuccess! Configuration generated.');
+        } catch (err: any) {
+            console.error('Authentication helper failed:', err.message);
+            process.exit(1);
+        }
+    });
+
+async function startServer() {
     const configService = new ConfigService();
-    // console.error('DEBUG: Config loaded');
     const logger = createLogger(configService);
 
     const otelService = new OtelService(logger);
@@ -78,7 +125,7 @@ async function main() {
             const port = configService.get('port');
             address = await transport.listen({ port });
         }
-        executionService.ipcAddress = address; // Update IPC address on ExecutionService instead of RequestController
+        executionService.ipcAddress = address;
 
         // Pre-warm workers
         await requestController.warmup();
@@ -102,7 +149,4 @@ async function main() {
     });
 }
 
-main().catch((err) => {
-    console.error('Failed to start Conduit:', err);
-    process.exit(1);
-});
+program.parse(process.argv);
