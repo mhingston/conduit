@@ -21,7 +21,7 @@ Conduit is a **secure Code Mode execution substrate** for [MCP](https://modelcon
 
 It lets agents:
 - generate **real TypeScript or Python code**
-- call tools via **language-native APIs** (`tools.github.createIssue()`)
+- call tools via **language-native APIs** (`tools.github.create_issue()`)
 - run that code in **isolated, resource-governed sandboxes**
 - without exposing credentials or the host environment
 
