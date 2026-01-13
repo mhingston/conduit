@@ -1,6 +1,6 @@
 {
   "name": "@mhingston5/conduit",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "type": "module",
   "description": "A secure Code Mode execution substrate for MCP agents",
   "main": "index.js",
