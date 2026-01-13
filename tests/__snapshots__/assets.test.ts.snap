@@ -35,7 +35,18 @@ const tools = new Proxy(_tools, {
         if (prop in target) return target[prop];
         if (prop === 'then') return undefined;
         if (typeof prop === 'string') {
-            throw new Error(\`Namespace '\${prop}' not found. It might be invalid, or all tools in it were disallowed.\`);
+            // Flat tool access fallback: search all namespaces for a matching tool
+            for (const nsName of Object.keys(target)) {
+                if (nsName === '$raw') continue;
+                const ns = target[nsName];
+                if (ns && typeof ns === 'object' && ns[prop]) {
+                    return ns[prop];
+                }
+            }
+
+            const forbidden = ['$raw'];
+            const namespaces = Object.keys(target).filter(k => !forbidden.includes(k));
+            throw new Error(\`Namespace or Tool '\${prop}' not found. Available namespaces: \${namespaces.join(', ') || 'none'}. Use tools.$raw(name, args) for dynamic calls.\`);
         }
         return undefined;
     }
@@ -60,6 +71,13 @@ class _Tools:
         self.github = _ToolNamespace({
             "create_issue": lambda args, n="github__create_issue": _internal_call_tool(n, args)
         })
+
+    def __getattr__(self, name):
+        # Flat access fallback: search all namespaces
+        for ns in self.__dict__.values():
+            if isinstance(ns, _ToolNamespace) and hasattr(ns, name):
+                return getattr(ns, name)
+        raise AttributeError(f"Namespace or Tool '{name}' not found")
 
     async def raw(self, name, args):
         """Call a tool by its full name (escape hatch for dynamic/unknown tools)"""
@@ -111,7 +129,18 @@ const tools = new Proxy(_tools, {
         if (prop in target) return target[prop];
         if (prop === 'then') return undefined;
         if (typeof prop === 'string') {
-            throw new Error(\`Namespace '\${prop}' not found. It might be invalid, or all tools in it were disallowed.\`);
+            // Flat tool access fallback: search all namespaces for a matching tool
+            for (const nsName of Object.keys(target)) {
+                if (nsName === '$raw') continue;
+                const ns = target[nsName];
+                if (ns && typeof ns === 'object' && ns[prop]) {
+                    return ns[prop];
+                }
+            }
+
+            const forbidden = ['$raw'];
+            const namespaces = Object.keys(target).filter(k => !forbidden.includes(k));
+            throw new Error(\`Namespace or Tool '\${prop}' not found. Available namespaces: \${namespaces.join(', ') || 'none'}. Use tools.$raw(name, args) for dynamic calls.\`);
         }
         return undefined;
     }

@@ -137,17 +137,22 @@ export class ExecutionService {
         const packages = await this.gatewayService.listToolPackages();
         const allBindings = [];
 
+        this.logger.debug({ packageCount: packages.length, packages: packages.map(p => p.id) }, 'Fetching tool bindings');
+
         for (const pkg of packages) {
             try {
                 // Determine if we need to fetch tools for this package
                 // Optimization: if allowedTools is strict, we could filter packages here
 
                 const stubs = await this.gatewayService.listToolStubs(pkg.id, context);
+                this.logger.debug({ packageId: pkg.id, stubCount: stubs.length }, 'Got stubs from package');
                 allBindings.push(...stubs.map(s => toToolBinding(s.id, undefined, s.description)));
             } catch (err: any) {
                 this.logger.warn({ packageId: pkg.id, err: err.message }, 'Failed to list stubs for package');
             }
         }
+
+        this.logger.info({ totalBindings: allBindings.length }, 'Tool bindings ready for SDK generation');
         return allBindings;
     }
 

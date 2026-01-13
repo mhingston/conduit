@@ -24,6 +24,7 @@ export class UpstreamClient {
     private urlValidator: IUrlValidator;
     private mcpClient?: Client;
     private transport?: StdioClientTransport;
+    private connected: boolean = false;
 
     constructor(logger: Logger, info: UpstreamInfo, authService: AuthService, urlValidator: IUrlValidator) {
         this.logger = logger.child({ upstreamId: info.id });
@@ -55,18 +56,16 @@ export class UpstreamClient {
 
     private async ensureConnected() {
         if (!this.mcpClient || !this.transport) return;
-        // There isn't a public isConnected property easily accessible, 
-        // usually we just connect once.
-        // We can track connected state or just try/catch connect.
-        // For simplicity, we connect once and existing sdk handles reconnection or errors usually kill it.
-        // Actually SDK Client.connect() is for the transport.
+        if (this.connected) return;
+
         try {
-            // @ts-ignore - Check internal state or just attempt connect if we haven't
-            if (!this.transport.connection) {
-                await this.mcpClient.connect(this.transport);
-            }
-        } catch (e) {
-            // connection might already be active
+            this.logger.debug('Connecting to upstream transport...');
+            await this.mcpClient.connect(this.transport);
+            this.connected = true;
+            this.logger.info('Connected to upstream MCP');
+        } catch (e: any) {
+            this.logger.error({ err: e.message }, 'Failed to connect to upstream');
+            throw e;
         }
     }
 

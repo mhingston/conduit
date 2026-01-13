@@ -66,6 +66,11 @@ export class PolicyService {
                 return true;
             }
 
+            // Improved matching: if pattern has only one part, match it against the tool's name part
+            if (patternParts.length === 1 && toolParts.length > 1) {
+                return patternParts[0] === toolParts[toolParts.length - 1];
+            }
+
             // Exact match: pattern parts must equal tool parts
             if (patternParts.length !== toolParts.length) return false;
             for (let i = 0; i < patternParts.length; i++) {

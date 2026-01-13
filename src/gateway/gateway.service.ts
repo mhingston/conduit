@@ -1,4 +1,6 @@
 import { Logger } from 'pino';
+import { HostClient } from './host.client.js';
+import { StdioTransport } from '../transport/stdio.transport.js';
 import { UpstreamClient, UpstreamInfo } from './upstream.client.js';
 import { AuthService } from './auth.service.js';
 import { SchemaCache, ToolSchema } from './schema.cache.js';
@@ -72,41 +74,69 @@ const BUILT_IN_TOOLS: ToolSchema[] = [
 
 export class GatewayService {
     private logger: Logger;
-    private clients: Map<string, UpstreamClient> = new Map();
+    private clients: Map<string, any> = new Map();
     private authService: AuthService;
     private schemaCache: SchemaCache;
     private urlValidator: IUrlValidator;
-    private policyService: PolicyService;
+    public policyService: PolicyService;
     private ajv: Ajv;
     // Cache compiled validators to avoid recompilation on every call
     private validatorCache = new Map<string, any>();
 
     constructor(logger: Logger, urlValidator: IUrlValidator, policyService?: PolicyService) {
-        this.logger = logger;
+        this.logger = logger.child({ component: 'GatewayService' });
+        this.logger.debug('GatewayService instance created');
         this.urlValidator = urlValidator;
         this.authService = new AuthService(logger);
         this.schemaCache = new SchemaCache(logger);
         this.policyService = policyService ?? new PolicyService();
-        this.ajv = new Ajv({ strict: false }); // Strict mode off for now to be permissive with upstream schemas
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        this.ajv = new Ajv({ strict: false });
         (addFormats as any).default(this.ajv);
     }
 
     registerUpstream(info: UpstreamInfo) {
         const client = new UpstreamClient(this.logger, info, this.authService, this.urlValidator);
         this.clients.set(info.id, client);
-        this.logger.info({ upstreamId: info.id }, 'Registered upstream MCP');
+        this.logger.info({ upstreamId: info.id, totalRegistered: this.clients.size }, 'Registered upstream MCP');
+    }
+
+    registerHost(transport: StdioTransport) {
+        // NOTE: The host (VS Code) cannot receive tools/call requests - it's the CLIENT.
+        // We only register it for potential future use (e.g., sampling requests).
+        // DO NOT use the host as a tool provider fallback.
+        this.logger.debug('Host transport available but not registered as tool upstream (protocol limitation)');
     }
 
     async listToolPackages(): Promise<ToolPackage[]> {
-        return Array.from(this.clients.entries()).map(([id, client]) => ({
+        const upstreams = Array.from(this.clients.entries()).map(([id, client]) => ({
             id,
-            description: `Upstream ${id}`, // NOTE: Upstream description fetching deferred to V2
+            description: `Upstream ${id}`,
             version: '1.0.0'
         }));
+
+        return [
+            { id: 'conduit', description: 'Conduit built-in execution tools', version: '1.0.0' },
+            ...upstreams
+        ];
+    }
+
+    getBuiltInTools(): ToolSchema[] {
+        return BUILT_IN_TOOLS;
     }
 
     async listToolStubs(packageId: string, context: ExecutionContext): Promise<ToolStub[]> {
+        if (packageId === 'conduit') {
+            const stubs = BUILT_IN_TOOLS.map(t => ({
+                id: `conduit__${t.name}`,
+                name: t.name,
+                description: t.description
+            }));
+            if (context.allowedTools) {
+                return stubs.filter(t => this.policyService.isToolAllowed(t.id, context.allowedTools!));
+            }
+            return stubs;
+        }
+
         const client = this.clients.get(packageId);
         if (!client) {
             throw new Error(`Upstream package not found: ${packageId}`);
@@ -117,39 +147,39 @@ export class GatewayService {
         // Try manifest first if tools not cached
         if (!tools) {
             try {
-                // Try to fetch manifest first
+                // Try to get manifest FIRST
                 const manifest = await client.getManifest(context);
-                if (manifest) {
-                    const stubs: ToolStub[] = manifest.tools.map((t: any) => ({
-                        id: `${packageId}__${t.name}`,
-                        name: t.name,
-                        description: t.description
-                    }));
+                if (manifest && manifest.tools) {
+                    tools = manifest.tools as ToolSchema[];
+                } else {
+                    // Fall back to RPC discovery
+                    if (typeof (client as any).listTools === 'function') {
+                        tools = await (client as any).listTools();
+                    } else {
+                        const response = await client.call({
+                            jsonrpc: '2.0',
+                            id: 'discovery',
+                            method: 'tools/list',
+                        }, context);
 
-                    if (context.allowedTools) {
-                        return stubs.filter(t => this.policyService.isToolAllowed(t.id, context.allowedTools!));
+                        if (response.result?.tools) {
+                            tools = response.result.tools as ToolSchema[];
+                        } else {
+                            this.logger.warn({ upstreamId: packageId, error: response.error }, 'Failed to discover tools via RPC');
+                        }
                     }
-                    return stubs;
                 }
-            } catch (e) {
-                // Manifest fetch failed, fall back
-                this.logger.debug({ packageId, err: e }, 'Manifest fetch failed, falling back to RPC');
-            }
 
-            const response = await client.call({
-                jsonrpc: '2.0',
-                id: 'discovery',
-                method: 'tools/list',
-            }, context);
-
-            if (response.result?.tools) {
-                tools = response.result.tools as ToolSchema[];
-                this.schemaCache.set(packageId, tools);
-            } else {
-                this.logger.warn({ upstreamId: packageId, error: response.error }, 'Failed to discover tools from upstream');
-                tools = [];
+                if (tools && tools.length > 0) {
+                    this.schemaCache.set(packageId, tools);
+                    this.logger.info({ upstreamId: packageId, toolCount: tools.length }, 'Discovered tools from upstream');
+                }
+            } catch (e: any) {
+                this.logger.error({ upstreamId: packageId, err: e.message }, 'Error during tool discovery');
             }
         }
+
+        if (!tools) tools = [];
 
         const stubs: ToolStub[] = tools.map(t => ({
             id: `${packageId}__${t.name}`,
@@ -170,17 +200,29 @@ export class GatewayService {
         }
 
         const parsed = this.policyService.parseToolName(toolId);
-        const toolName = parsed.name; // Use a new variable for the un-namespaced name
+        const namespace = parsed.namespace;
+        const toolName = parsed.name;
 
-        // Check for built-in tools
-        const builtIn = BUILT_IN_TOOLS.find(t => t.name === toolId); // Compare with the full toolId
-        if (builtIn) return builtIn;
+        // Check for built-in tools (now namespaced as conduit__*)
+        if (namespace === 'conduit' || namespace === '') {
+            const builtIn = BUILT_IN_TOOLS.find(t => t.name === toolName);
+            if (builtIn) {
+                return { ...builtIn, name: `conduit__${builtIn.name}` };
+            }
+        }
 
-        const upstreamId = parsed.namespace;
+        const upstreamId = namespace;
+        if (!upstreamId) {
+            // Un-namespaced tool lookup: try all upstreams
+            for (const id of this.clients.keys()) {
+                const schema = await this.getToolSchema(`${id}__${toolName}`, context);
+                if (schema) return schema;
+            }
+            return null;
+        }
 
         // Ensure we have schemas for this upstream
         if (!this.schemaCache.get(upstreamId)) {
-            // Force refresh if missing
             await this.listToolStubs(upstreamId, context);
         }
 
@@ -189,7 +231,6 @@ export class GatewayService {
 
         if (!tool) return null;
 
-        // Return schema with namespaced name
         return {
             ...tool,
             name: toolId
@@ -197,41 +238,48 @@ export class GatewayService {
     }
 
     async discoverTools(context: ExecutionContext): Promise<ToolSchema[]> {
-        const allTools: ToolSchema[] = [...BUILT_IN_TOOLS];
+        const allTools: ToolSchema[] = BUILT_IN_TOOLS.map(t => ({
+            ...t,
+            name: `conduit__${t.name}`
+        }));
+
+        this.logger.debug({ clientCount: this.clients.size, clientIds: Array.from(this.clients.keys()) }, 'Starting tool discovery');
 
         for (const [id, client] of this.clients.entries()) {
-            let tools = this.schemaCache.get(id);
-
-            if (!tools) {
-                const response = await client.call({
-                    jsonrpc: '2.0',
-                    id: 'discovery',
-                    method: 'tools/list', // Standard MCP method
-                }, context);
-
-                if (response.result?.tools) {
-                    tools = response.result.tools as ToolSchema[];
-                    this.schemaCache.set(id, tools);
-                } else {
-                    this.logger.warn({ upstreamId: id, error: response.error }, 'Failed to discover tools from upstream');
-                    tools = [];
-                }
+            // Skip host - it's not a tool provider
+            if (id === 'host') {
+                continue;
             }
 
-            const prefixedTools = tools.map(t => ({ ...t, name: `${id}__${t.name}` }));
+            this.logger.debug({ upstreamId: id }, 'Discovering tools from upstream');
 
-            if (context.allowedTools) {
-                // Support wildcard patterns: "mock.*" matches "mock__hello"
-                allTools.push(...prefixedTools.filter(t => this.policyService.isToolAllowed(t.name, context.allowedTools!)));
-            } else {
-                allTools.push(...prefixedTools);
+            // reuse unified discovery logic
+            try {
+                await this.listToolStubs(id, context);
+            } catch (e: any) {
+                this.logger.error({ upstreamId: id, err: e.message }, 'Failed to list tool stubs');
+            }
+            const tools = this.schemaCache.get(id) || [];
+
+            this.logger.debug({ upstreamId: id, toolCount: tools.length }, 'Discovery result');
+
+            if (tools && tools.length > 0) {
+                const prefixedTools = tools.map(t => ({ ...t, name: `${id}__${t.name}` }));
+                if (context.allowedTools) {
+                    allTools.push(...prefixedTools.filter(t => this.policyService.isToolAllowed(t.name, context.allowedTools!)));
+                } else {
+                    allTools.push(...prefixedTools);
+                }
             }
         }
 
+        this.logger.info({ totalTools: allTools.length }, 'Tool discovery complete');
         return allTools;
     }
 
     async callTool(name: string, params: any, context: ExecutionContext): Promise<JSONRPCResponse> {
+        this.logger.debug({ name, upstreamCount: this.clients.size }, 'GatewayService.callTool called');
+
         if (context.allowedTools && !this.policyService.isToolAllowed(name, context.allowedTools)) {
             this.logger.warn({ name, allowedTools: context.allowedTools }, 'Tool call blocked by allowlist');
             return {
@@ -248,14 +296,43 @@ export class GatewayService {
         const upstreamId = toolId.namespace;
         const toolName = toolId.name;
 
+        this.logger.debug({ name, upstreamId, toolName }, 'Parsed tool name');
+
+        // Fallback for namespaceless calls: try to find the tool in any registered upstream
+        if (!upstreamId) {
+            this.logger.debug({ toolName }, 'Namespaceless call, attempting discovery across upstreams');
+            const allStubs = await this.discoverTools(context);
+            const found = allStubs.find(t => {
+                const parts = t.name.split('__');
+                return parts[parts.length - 1] === toolName;
+            });
+
+            if (found) {
+                this.logger.debug({ original: name, resolved: found.name }, 'Resolved namespaceless tool');
+                return this.callTool(found.name, params, context);
+            }
+
+            // No fallback to host - it doesn't support server-to-client tool calls
+            const upstreamList = Array.from(this.clients.keys()).filter(k => k !== 'host');
+            return {
+                jsonrpc: '2.0',
+                id: 0,
+                error: {
+                    code: -32601,
+                    message: `Tool '${toolName}' not found. Discovered ${allStubs.length} tools from upstreams: [${upstreamList.join(', ') || 'none'}]. Available tools: ${allStubs.map(t => t.name).slice(0, 10).join(', ')}${allStubs.length > 10 ? '...' : ''}`,
+                },
+            };
+        }
+
         const client = this.clients.get(upstreamId);
         if (!client) {
+            this.logger.error({ upstreamId, availableUpstreams: Array.from(this.clients.keys()) }, 'Upstream not found');
             return {
                 jsonrpc: '2.0',
                 id: 0,
                 error: {
                     code: -32003,
-                    message: `Upstream not found: ${upstreamId}`,
+                    message: `Upstream not found: '${upstreamId}'. Available: ${Array.from(this.clients.keys()).join(', ') || 'none'}`,
                 },
             };
         }

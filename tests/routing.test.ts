@@ -21,6 +21,13 @@ describe('RequestController Routing', () => {
         mockGatewayService = {
             callTool: vi.fn(),
             discoverTools: vi.fn().mockResolvedValue([]),
+            policyService: {
+                parseToolName: (name: string) => {
+                    const idx = name.indexOf('__');
+                    if (idx === -1) return { namespace: '', name };
+                    return { namespace: name.substring(0, idx), name: name.substring(idx + 2) };
+                }
+            }
         };
         mockDenoExecutor = {
             execute: vi.fn().mockResolvedValue({ stdout: 'deno', stderr: '', exitCode: 0 }),

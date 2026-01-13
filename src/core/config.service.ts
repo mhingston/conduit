@@ -134,10 +134,14 @@ export class ConfigService {
             (fs.existsSync(path.resolve(process.cwd(), 'conduit.yaml')) ? 'conduit.yaml' :
                 (fs.existsSync(path.resolve(process.cwd(), 'conduit.json')) ? 'conduit.json' : null));
 
-        if (!configPath) return {};
+        if (!configPath) {
+            console.warn(`[Conduit] No config file found in ${process.cwd()}. Running with default settings.`);
+            return {};
+        }
 
         try {
             const fullPath = path.resolve(process.cwd(), configPath);
+            console.error(`[Conduit] Loading config from ${fullPath}`);
             let fileContent = fs.readFileSync(fullPath, 'utf-8');
 
             // Env var substitution: ${VAR} or ${VAR:-default}

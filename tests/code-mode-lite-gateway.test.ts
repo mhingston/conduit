@@ -36,11 +36,11 @@ describe('GatewayService (Code Mode Lite)', () => {
     });
 
     describe('listToolPackages', () => {
-        it('should return registered tool packages', async () => {
+        it('should return registered tool packages including built-ins', async () => {
             const packages = await gateway.listToolPackages();
-            expect(packages).toHaveLength(1);
-            expect(packages[0].id).toBe('mock-upstream');
-            expect(packages[0].description).toContain('Upstream mock-upstream');
+            expect(packages).toHaveLength(2); // conduit + mock-upstream
+            expect(packages.find(p => p.id === 'conduit')).toBeDefined();
+            expect(packages.find(p => p.id === 'mock-upstream')).toBeDefined();
         });
     });
 

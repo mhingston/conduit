@@ -128,6 +128,8 @@ export class RequestController {
                 return this.handleInitialize(params, context, id);
             case 'notifications/initialized':
                 return null; // Notifications don't get responses per MCP spec
+            case 'mcp_register_upstream':
+                return this.handleRegisterUpstream(params, context, id);
             case 'ping':
                 return { jsonrpc: '2.0', id, result: {} };
             default:
@@ -135,6 +137,23 @@ export class RequestController {
                 // Wait, if 404, LoggingMiddleware records execution end?
                 // Yes, handle() in LoggingMiddleware wraps next().
                 return this.errorResponse(id, -32601, `Method not found: ${method}`);
+        }
+    }
+
+    private async handleRegisterUpstream(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {
+        if (!params || !params.id || !params.type || (!params.url && !params.command)) {
+            return this.errorResponse(id, -32602, 'Missing registration parameters (id, type, url/command)');
+        }
+
+        try {
+            this.gatewayService.registerUpstream(params);
+            return {
+                jsonrpc: '2.0',
+                id,
+                result: { success: true }
+            };
+        } catch (err: any) {
+            return this.errorResponse(id, -32001, err.message);
         }
     }
 
@@ -215,14 +234,20 @@ export class RequestController {
         if (!params) return this.errorResponse(id, -32602, 'Missing parameters');
         const { name, arguments: toolArgs } = params;
 
+        const toolId = this.gatewayService.policyService.parseToolName(name);
+        const baseName = toolId.name;
+        const isConduit = toolId.namespace === 'conduit' || toolId.namespace === '';
+
         // Route built-in tools to their specific handlers
-        switch (name) {
-            case 'mcp_execute_typescript':
-                return this.handleExecuteToolCall('typescript', toolArgs, context, id);
-            case 'mcp_execute_python':
-                return this.handleExecuteToolCall('python', toolArgs, context, id);
-            case 'mcp_execute_isolate':
-                return this.handleExecuteToolCall('isolate', toolArgs, context, id);
+        if (isConduit) {
+            switch (baseName) {
+                case 'mcp_execute_typescript':
+                    return this.handleExecuteToolCall('typescript', toolArgs, context, id);
+                case 'mcp_execute_python':
+                    return this.handleExecuteToolCall('python', toolArgs, context, id);
+                case 'mcp_execute_isolate':
+                    return this.handleExecuteToolCall('isolate', toolArgs, context, id);
+            }
         }
 
         const response = await this.gatewayService.callTool(name, toolArgs, context);

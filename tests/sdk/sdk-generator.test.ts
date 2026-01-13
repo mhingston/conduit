@@ -43,7 +43,7 @@ describe('SDKGenerator', () => {
 
             const code = generator.generateTypeScript(bindings, undefined, false);
 
-            expect(code).not.toContain('$raw');
+            expect(code).not.toContain('async $raw(name, args)');
         });
 
         it('should include JSDoc comments from descriptions', () => {
@@ -74,10 +74,10 @@ describe('SDKGenerator', () => {
             const code = generator.generatePython(bindings);
 
             expect(code).toContain('class _Tools:');
-            expect(code).toContain('self.github = _ToolNamespace');
-            expect(code).toContain('"create_issue"');  // snake_case conversion
-            expect(code).toContain('self.slack = _ToolNamespace');
-            expect(code).toContain('"send_message"');  // snake_case conversion
+            expect(code).toContain('self.github = _github_Namespace');
+            expect(code).toContain('async def create_issue(self, args=None, **kwargs)');  // accepts dict or kwargs
+            expect(code).toContain('self.slack = _slack_Namespace');
+            expect(code).toContain('async def send_message(self, args=None, **kwargs)');  // accepts dict or kwargs
             expect(code).toContain('tools = _Tools()');
         });
 
@@ -88,8 +88,8 @@ describe('SDKGenerator', () => {
 
             const code = generator.generatePython(bindings);
 
-            expect(code).toContain('async def raw(self, name, args)');
-            expect(code).toContain('await _internal_call_tool(normalized, args)');
+            expect(code).toContain('async def raw(self, name, args=None)');
+            expect(code).toContain('await _internal_call_tool(normalized, args or {})');
         });
 
         it('should inject allowlist when provided', () => {

@@ -29,9 +29,10 @@ program
     .command('serve', { isDefault: true })
     .description('Start the Conduit server')
     .option('--stdio', 'Use stdio transport')
+    .option('--config <path>', 'Path to config file')
     .action(async (options) => {
         try {
-            await startServer();
+            await startServer(options);
         } catch (err) {
             console.error('Failed to start Conduit:', err);
             process.exit(1);
@@ -68,8 +69,13 @@ program
         }
     });
 
-async function startServer() {
-    const configService = new ConfigService();
+async function startServer(options: any = {}) {
+    // Merge command line options into config overrides
+    const overrides: any = {};
+    if (options.stdio) overrides.transport = 'stdio';
+    if (options.config) process.env.CONFIG_FILE = options.config;
+
+    const configService = new ConfigService(overrides);
     const logger = createLogger(configService);
 
     const otelService = new OtelService(logger);
@@ -84,6 +90,7 @@ async function startServer() {
 
         const gatewayService = new GatewayService(logger, securityService);
         const upstreams = configService.get('upstreams') || [];
+        logger.info({ upstreamCount: upstreams.length, upstreamIds: upstreams.map((u: any) => u.id) }, 'Registering upstreams from config');
         for (const upstream of upstreams) {
             gatewayService.registerUpstream(upstream);
         }
@@ -122,8 +129,10 @@ async function startServer() {
         let address: string;
 
         if (configService.get('transport') === 'stdio') {
-            transport = new StdioTransport(logger, requestController, concurrencyService);
+            const stdioTransport = new StdioTransport(logger, requestController, concurrencyService);
+            transport = stdioTransport;
             await transport.start();
+            gatewayService.registerHost(stdioTransport);
             address = 'stdio';
 
             // IMPORTANT: Even in stdio mode, we need a local socket for sandboxes to talk to

@@ -10,6 +10,7 @@ export class StdioTransport {
     private requestController: RequestController;
     private concurrencyService: ConcurrencyService;
     private buffer: string = '';
+    private pendingRequests = new Map<string | number, (response: any) => void>();
 
     constructor(
         logger: Logger,
@@ -33,6 +34,34 @@ export class StdioTransport {
         });
     }
 
+    async callHost(method: string, params: any): Promise<any> {
+        const id = Math.random().toString(36).substring(7);
+        const request = {
+            jsonrpc: '2.0',
+            id,
+            method,
+            params
+        };
+
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.pendingRequests.delete(id);
+                reject(new Error(`Timeout waiting for host response to ${method}`));
+            }, 30000);
+
+            this.pendingRequests.set(id, (response) => {
+                clearTimeout(timeout);
+                if (response.error) {
+                    reject(new Error(response.error.message));
+                } else {
+                    resolve(response.result);
+                }
+            });
+
+            this.sendResponse(request);
+        });
+    }
+
     private handleData(chunk: string) {
         this.buffer += chunk;
 
@@ -48,11 +77,11 @@ export class StdioTransport {
     }
 
     private async processLine(line: string) {
-        let request: JSONRPCRequest;
+        let message: any;
         try {
-            request = JSON.parse(line) as JSONRPCRequest;
+            message = JSON.parse(line);
         } catch (err) {
-            this.logger.error({ err, line }, 'Failed to parse JSON-RPC request');
+            this.logger.error({ err, line }, 'Failed to parse JSON-RPC message');
             const errorResponse = {
                 jsonrpc: '2.0',
                 id: null,
@@ -65,6 +94,18 @@ export class StdioTransport {
             return;
         }
 
+        // Handle Response
+        if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
+            const pending = this.pendingRequests.get(message.id);
+            if (pending) {
+                this.pendingRequests.delete(message.id);
+                pending(message);
+                return;
+            }
+        }
+
+        // Handle Request
+        const request = message as JSONRPCRequest;
         const context = new ExecutionContext({
             logger: this.logger,
             remoteAddress: 'stdio',

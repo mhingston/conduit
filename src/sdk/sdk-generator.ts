@@ -10,7 +10,9 @@ export class SDKGenerator {
      * Convert camelCase to snake_case for Python
      */
     private toSnakeCase(str: string): string {
-        return str.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+        const snake = str.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/[^a-z0-9_]/g, '_');
+        // Ensure it doesn't start with a number
+        return /^[0-9]/.test(snake) ? `_${snake}` : snake;
     }
 
     /**
@@ -98,7 +100,18 @@ const tools = new Proxy(_tools, {
         if (prop in target) return target[prop];
         if (prop === 'then') return undefined;
         if (typeof prop === 'string') {
-            throw new Error(\`Namespace '\${prop}' not found. It might be invalid, or all tools in it were disallowed.\`);
+            // Flat tool access fallback: search all namespaces for a matching tool
+            for (const nsName of Object.keys(target)) {
+                if (nsName === '$raw') continue;
+                const ns = target[nsName];
+                if (ns && typeof ns === 'object' && ns[prop]) {
+                    return ns[prop];
+                }
+            }
+
+            const forbidden = ['\x24raw'];
+            const namespaces = Object.keys(target).filter(k => !forbidden.includes(k));
+            throw new Error(\`Namespace or Tool '\${prop}' not found. Available namespaces: \${namespaces.join(', ') || 'none'}. Use tools.$raw(name, args) for dynamic calls.\`);
         }
         return undefined;
     }
@@ -131,35 +144,47 @@ const tools = new Proxy(_tools, {
         }
 
         lines.push('');
-        lines.push('class _ToolNamespace:');
-        lines.push('    def __init__(self, methods):');
-        lines.push('        for name, fn in methods.items():');
-        lines.push('            setattr(self, name, fn)');
-        lines.push('');
-        lines.push('class _Tools:');
-        lines.push('    def __init__(self):');
 
+        // Generate namespace classes
         for (const [namespace, tools] of grouped.entries()) {
             const safeNamespace = this.toSnakeCase(namespace);
-            const methodsDict: string[] = [];
+            lines.push(`class _${safeNamespace}_Namespace:`);
 
             for (const tool of tools) {
                 const methodName = this.toSnakeCase(tool.methodName);
                 const fullName = tool.name;
-                // Use async lambda - Python doesn't have async lambdas natively,
-                // so we define methods that return awaitable coroutines
-                methodsDict.push(`            "${methodName}": lambda args, n="${this.escapeString(fullName)}": _internal_call_tool(n, args)`);
+                // Accept both dict as first arg OR kwargs for flexibility
+                lines.push(`    async def ${methodName}(self, args=None, **kwargs):`);
+                lines.push(`        params = args if args is not None else kwargs`);
+                lines.push(`        return await _internal_call_tool("${this.escapeString(fullName)}", params)`);
             }
-
-            lines.push(`        self.${safeNamespace} = _ToolNamespace({`);
-            lines.push(methodsDict.join(',\n'));
-            lines.push(`        })`);
+            lines.push('');
         }
 
-        // Add raw escape hatch with allowlist validation
+        // Generate the main Tools class
+        lines.push('class _Tools:');
+        lines.push('    def __init__(self):');
+        if (grouped.size === 0) {
+            lines.push('        pass');
+        } else {
+            for (const [namespace] of grouped.entries()) {
+                const safeNamespace = this.toSnakeCase(namespace);
+                lines.push(`        self.${safeNamespace} = _${safeNamespace}_Namespace()`);
+            }
+        }
+
+        lines.push('');
+        lines.push('    def __getattr__(self, name):');
+        lines.push('        # Flat access fallback: search all namespaces');
+        lines.push('        for attr_name in dir(self):');
+        lines.push('            attr = getattr(self, attr_name, None)');
+        lines.push('            if attr and hasattr(attr, name):');
+        lines.push('                return getattr(attr, name)');
+        lines.push('        raise AttributeError(f"Namespace or Tool \'{name}\' not found")');
+
         if (enableRawFallback) {
             lines.push('');
-            lines.push('    async def raw(self, name, args):');
+            lines.push('    async def raw(self, name, args=None):');
             lines.push('        """Call a tool by its full name (escape hatch for dynamic/unknown tools)"""');
             lines.push('        normalized = name.replace(".", "__")');
             lines.push('        if _allowed_tools is not None:');
@@ -169,7 +194,7 @@ const tools = new Proxy(_tools, {
             lines.push('            )');
             lines.push('            if not allowed:');
             lines.push('                raise PermissionError(f"Tool {name} is not in the allowlist")');
-            lines.push('        return await _internal_call_tool(normalized, args)');
+            lines.push('        return await _internal_call_tool(normalized, args or {})');
         }
 
         lines.push('');
@@ -224,23 +249,23 @@ const tools = new Proxy(_tools, {
                 lines.push(`    },`);
             }
 
-            lines.push(`  },`);
+            lines.push('  },');
         }
 
         // Add $raw escape hatch
         if (enableRawFallback) {
-            lines.push(`  async $raw(name, args) {`);
+            lines.push('  async $raw(name, args) {');
             lines.push(`    const normalized = name.replace(/\\./g, '__');`);
-            lines.push(`    if (__allowedTools) {`);
+            lines.push('    if (__allowedTools) {');
             lines.push(`      const allowed = __allowedTools.some(p => {`);
             lines.push(`        if (p.endsWith('__*')) return normalized.startsWith(p.slice(0, -1));`);
-            lines.push(`        return normalized === p;`);
-            lines.push(`      });`);
-            lines.push(`      if (!allowed) throw new Error(\`Tool \${name} is not in the allowlist\`);`);
-            lines.push(`    }`);
-            lines.push(`    const resStr = await __callTool(normalized, JSON.stringify(args || {}));`);
-            lines.push(`    return JSON.parse(resStr);`);
-            lines.push(`  },`);
+            lines.push('        return normalized === p;');
+            lines.push('      });');
+            lines.push('      if (!allowed) throw new Error(`Tool ${name} is not in the allowlist`);');
+            lines.push('    }');
+            lines.push('    const resStr = await __callTool(normalized, JSON.stringify(args || {}));');
+            lines.push('    return JSON.parse(resStr);');
+            lines.push('  },');
         }
 
         lines.push('};');
@@ -250,7 +275,18 @@ const tools = new Proxy(_tools, {
         if (prop in target) return target[prop];
         if (prop === 'then') return undefined;
         if (typeof prop === 'string') {
-            throw new Error(\`Namespace '\${prop}' not found. It might be invalid, or all tools in it were disallowed.\`);
+            // Flat tool access fallback: search all namespaces for a matching tool
+            for (const nsName of Object.keys(target)) {
+                if (nsName === '$raw') continue;
+                const ns = target[nsName];
+                if (ns && typeof ns === 'object' && ns[prop]) {
+                    return ns[prop];
+                }
+            }
+
+            const forbidden = ['\x24raw'];
+            const namespaces = Object.keys(target).filter(k => !forbidden.includes(k));
+            throw new Error(\`Namespace or Tool '\${prop}' not found. Available namespaces: \${namespaces.join(', ') || 'none'}. Use tools.$raw(name, args) for dynamic calls.\`);
         }
         return undefined;
     }
