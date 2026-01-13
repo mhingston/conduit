@@ -41,7 +41,7 @@ export class SDKGenerator {
             lines.push('const __allowedTools = null;');
         }
 
-        lines.push('const tools = {');
+        lines.push('const _tools = {');
 
         for (const [namespace, tools] of grouped.entries()) {
             // Validate namespace is a valid identifier
@@ -92,6 +92,18 @@ export class SDKGenerator {
         }
 
         lines.push('};');
+        lines.push(`
+const tools = new Proxy(_tools, {
+    get: (target, prop) => {
+        if (prop in target) return target[prop];
+        if (prop === 'then') return undefined;
+        if (typeof prop === 'string') {
+            throw new Error(\`Namespace '\${prop}' not found. It might be invalid, or all tools in it were disallowed.\`);
+        }
+        return undefined;
+    }
+});
+`);
         lines.push('(globalThis as any).tools = tools;');
 
         return lines.join('\n');
@@ -187,7 +199,7 @@ export class SDKGenerator {
             lines.push('const __allowedTools = null;');
         }
 
-        lines.push('const tools = {');
+        lines.push('const _tools = {');
 
         for (const [namespace, tools] of grouped.entries()) {
             const safeNamespace = this.isValidIdentifier(namespace) ? namespace : `["${this.escapeString(namespace)}"]`;
@@ -232,6 +244,18 @@ export class SDKGenerator {
         }
 
         lines.push('};');
+        lines.push(`
+const tools = new Proxy(_tools, {
+    get: (target, prop) => {
+        if (prop in target) return target[prop];
+        if (prop === 'then') return undefined;
+        if (typeof prop === 'string') {
+            throw new Error(\`Namespace '\${prop}' not found. It might be invalid, or all tools in it were disallowed.\`);
+        }
+        return undefined;
+    }
+});
+`);
 
         return lines.join('\n');
     }

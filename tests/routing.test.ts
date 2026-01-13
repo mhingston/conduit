@@ -162,7 +162,7 @@ describe('RequestController Routing', () => {
         }, mockContext);
 
         expect(mockIsolateExecutor.execute).toHaveBeenCalled();
-        expect(result!.result.stdout).toBe('isolate');
+        expect(result!.result.structuredContent.stdout).toBe('isolate');
     });
 
 });

@@ -15,12 +15,13 @@ describe('SDKGenerator', () => {
 
             const code = generator.generateTypeScript(bindings);
 
-            expect(code).toContain('const tools = {');
+            expect(code).toContain('const _tools = {');
             expect(code).toContain('github: {');
             expect(code).toContain('async createIssue(args)');
             expect(code).toContain('await __internalCallTool("github__createIssue", args)');
             expect(code).toContain('slack: {');
             expect(code).toContain('async sendMessage(args)');
+            expect(code).toContain('const tools = new Proxy(_tools');
             expect(code).toContain('(globalThis as any).tools = tools');
         });
 
@@ -58,7 +59,7 @@ describe('SDKGenerator', () => {
         it('should handle empty bindings', () => {
             const code = generator.generateTypeScript([]);
 
-            expect(code).toContain('const tools = {');
+            expect(code).toContain('const _tools = {');
             expect(code).toContain('async $raw(name, args)');
         });
     });

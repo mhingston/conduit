@@ -104,6 +104,9 @@ export class RequestController {
             case 'tools/list': // Standard MCP method name
             case 'mcp_discover_tools':
                 return this.handleDiscoverTools(params, context, id);
+            case 'resources/list':
+            case 'prompts/list':
+                return { jsonrpc: '2.0', id, result: { items: [] } };
             case 'mcp_list_tool_packages':
                 return this.handleListToolPackages(params, context, id);
             case 'mcp_list_tool_stubs':
@@ -215,15 +218,60 @@ export class RequestController {
         // Route built-in tools to their specific handlers
         switch (name) {
             case 'mcp_execute_typescript':
-                return this.handleExecuteTypeScript(toolArgs, context, id);
+                return this.handleExecuteToolCall('typescript', toolArgs, context, id);
             case 'mcp_execute_python':
-                return this.handleExecutePython(toolArgs, context, id);
+                return this.handleExecuteToolCall('python', toolArgs, context, id);
             case 'mcp_execute_isolate':
-                return this.handleExecuteIsolate(toolArgs, context, id);
+                return this.handleExecuteToolCall('isolate', toolArgs, context, id);
         }
 
         const response = await this.gatewayService.callTool(name, toolArgs, context);
         return { ...response, id };
+    }
+
+    private formatExecutionResult(result: { stdout: string; stderr: string; exitCode: number | null }) {
+        const structured = {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: result.exitCode,
+        };
+        return {
+            content: [{
+                type: 'text',
+                text: JSON.stringify(structured),
+            }],
+            structuredContent: structured,
+        };
+    }
+
+    private async handleExecuteToolCall(
+        mode: 'typescript' | 'python' | 'isolate',
+        params: any,
+        context: ExecutionContext,
+        id: string | number
+    ): Promise<JSONRPCResponse> {
+        if (!params) return this.errorResponse(id, -32602, 'Missing parameters');
+        const { code, limits, allowedTools } = params;
+
+        if (Array.isArray(allowedTools)) {
+            context.allowedTools = allowedTools;
+        }
+
+        const result = mode === 'typescript'
+            ? await this.executionService.executeTypeScript(code, limits, context, allowedTools)
+            : mode === 'python'
+                ? await this.executionService.executePython(code, limits, context, allowedTools)
+                : await this.executionService.executeIsolate(code, limits, context, allowedTools);
+
+        if (result.error) {
+            return this.errorResponse(id, result.error.code, result.error.message);
+        }
+
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: this.formatExecutionResult(result),
+        };
     }
 
     private async handleExecuteTypeScript(params: any, context: ExecutionContext, id: string | number): Promise<JSONRPCResponse> {

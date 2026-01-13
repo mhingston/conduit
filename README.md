@@ -97,6 +97,17 @@ npx conduit auth \
 
 This will start a temporary local server, open your browser for authorization, and print the generated `credentials` block for your `conduit.yaml`.
 
+For GitHub MCP (remote server OAuth), you can auto-discover endpoints and use PKCE:
+
+```bash
+npx conduit auth \
+  --client-id <id> \
+  --client-secret <secret> \
+  --mcp-url https://api.githubcopilot.com/mcp/ \
+  --scopes repo,read:org \
+  --pkce
+```
+
 ### 4. Execute TypeScript
 
 Using any [MCP Client](https://modelcontextprotocol.io/clients) (Claude Desktop, etc.), call `mcp_execute_typescript`:
@@ -104,7 +115,7 @@ Using any [MCP Client](https://modelcontextprotocol.io/clients) (Claude Desktop,
 ```ts
 // The agent writes this code:
 const result = await tools.filesystem.list_allowed_directories();
-console.log("Files:", result);
+console.log("Directories:", JSON.stringify(result.content));
 ```
 
 ### 5. Result
@@ -113,7 +124,7 @@ Conduit runs the code, handles the tool call securely, and returns:
 
 ```json
 {
-  "stdout": "Files: ['/tmp']\n",
+  "stdout": "Directories: [{\"type\":\"text\",\"text\":\"/tmp\"}]\n",
   "stderr": "",
   "exitCode": 0
 }

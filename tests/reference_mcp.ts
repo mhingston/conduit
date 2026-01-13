@@ -5,7 +5,7 @@ const server = Fastify();
 server.post('/', async (request, reply) => {
     const { method, params, id } = request.body as any;
 
-    if (method === 'list_tools') {
+    if (method === 'list_tools' || method === 'tools/list') {
         return {
             jsonrpc: '2.0',
             id,
@@ -21,12 +21,14 @@ server.post('/', async (request, reply) => {
         };
     }
 
-    if (method === 'call_tool') {
+    if (method === 'call_tool' || method === 'tools/call') {
+        const toolName = params.name || '';
+        const args = params.arguments || {};
         return {
             jsonrpc: '2.0',
             id,
             result: {
-                content: [{ type: 'text', text: `Echo: ${JSON.stringify(params.arguments)}` }]
+                content: [{ type: 'text', text: `Echo: ${JSON.stringify(args)}` }]
             }
         };
     }

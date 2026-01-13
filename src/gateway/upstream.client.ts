@@ -90,23 +90,31 @@ export class UpstreamClient {
             await this.ensureConnected();
 
             // Map GatewayService method names to SDK typed methods
-            if (request.method === 'list_tools') {
+            if (request.method === 'list_tools' || request.method === 'tools/list') {
                 const result = await this.mcpClient.listTools();
                 return {
                     jsonrpc: '2.0',
                     id: request.id,
                     result: result
                 };
-            } else if (request.method === 'call_tool') {
+            } else if (request.method === 'call_tool' || request.method === 'tools/call') {
                 const params = request.params as { name: string; arguments?: Record<string, unknown> };
                 const result = await this.mcpClient.callTool({
                     name: params.name,
                     arguments: params.arguments,
                 });
+                const normalizedResult = (result && Array.isArray((result as any).content))
+                    ? result
+                    : {
+                        content: [{
+                            type: 'text',
+                            text: typeof result === 'string' ? result : JSON.stringify(result ?? null),
+                        }],
+                    };
                 return {
                     jsonrpc: '2.0',
                     id: request.id,
-                    result: result
+                    result: normalizedResult
                 };
             } else {
                 // Fallback to generic request for other methods

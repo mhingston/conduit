@@ -44,10 +44,10 @@ describe('Dynamic Tool Calling (E2E)', () => {
         // Register a mock upstream tool
         (gatewayService as any).clients.set('mock', {
             call: vi.fn().mockImplementation((req) => {
-                if (req.method === 'call_tool' && req.params.name === 'hello') {
+                if (req.method === 'tools/call' && req.params.name === 'hello') {
                     return { jsonrpc: '2.0', id: req.id, result: { content: [{ type: 'text', text: `Hello ${req.params.arguments.name}` }] } };
                 }
-                if (req.method === 'list_tools') {
+                if (req.method === 'tools/list') {
                     return { jsonrpc: '2.0', id: req.id, result: { tools: [{ name: 'hello', inputSchema: {} }] } };
                 }
                 return { jsonrpc: '2.0', id: req.id, result: {} };
@@ -227,7 +227,7 @@ print(f"RESULT:{result}")
         const request = callArgs[0];
 
         expect(request).toMatchObject({
-            method: 'call_tool',
+            method: 'tools/call',
             params: {
                 name: 'hello',
                 arguments: { name: 'Isolate' }

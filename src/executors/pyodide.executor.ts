@@ -94,9 +94,15 @@ export class PyodideExecutor implements Executor {
     }
 
     private createWorker(limits?: ConduitResourceLimits): Worker {
-        let workerPath = path.resolve(__dirname, './pyodide.worker.js');
-        if (!fs.existsSync(workerPath)) {
-            workerPath = path.resolve(__dirname, './pyodide.worker.ts');
+        const candidates = [
+            path.resolve(__dirname, './pyodide.worker.js'),
+            path.resolve(__dirname, './pyodide.worker.ts'),
+            path.resolve(__dirname, './executors/pyodide.worker.js'),
+            path.resolve(__dirname, './executors/pyodide.worker.ts'),
+        ];
+        const workerPath = candidates.find(p => fs.existsSync(p));
+        if (!workerPath) {
+            throw new Error(`Pyodide worker not found. Tried: ${candidates.join(', ')}`);
         }
 
         return new Worker(workerPath, {
@@ -324,4 +330,3 @@ export class PyodideExecutor implements Executor {
         }
     }
 }
-

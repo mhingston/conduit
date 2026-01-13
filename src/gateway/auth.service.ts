@@ -11,6 +11,7 @@ export interface UpstreamCredentials {
     clientSecret?: string;
     tokenUrl?: string;
     refreshToken?: string;
+    scopes?: string[];
 }
 
 interface CachedToken {
@@ -73,26 +74,35 @@ export class AuthService {
     }
 
     private async doRefresh(creds: UpstreamCredentials, cacheKey: string): Promise<string> {
-        if (!creds.tokenUrl || !creds.refreshToken || !creds.clientId || !creds.clientSecret) {
+        if (!creds.tokenUrl || !creds.refreshToken || !creds.clientId) {
             throw new Error('OAuth2 credentials missing required fields for refresh');
         }
 
         this.logger.info({ tokenUrl: creds.tokenUrl, clientId: creds.clientId }, 'Refreshing OAuth2 token');
 
         try {
-            const response = await axios.post(creds.tokenUrl, {
-                grant_type: 'refresh_token',
-                refresh_token: creds.refreshToken,
-                client_id: creds.clientId,
-                client_secret: creds.clientSecret,
+            const body = new URLSearchParams();
+            body.set('grant_type', 'refresh_token');
+            body.set('refresh_token', creds.refreshToken);
+            body.set('client_id', creds.clientId);
+            if (creds.clientSecret) {
+                body.set('client_secret', creds.clientSecret);
+            }
+
+            const response = await axios.post(creds.tokenUrl, body, {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json',
+                },
             });
 
             const { access_token, expires_in } = response.data;
+            const expiresInSeconds = Number(expires_in) || 3600;
 
             // Cache the token (don't mutate the input credentials)
             this.tokenCache.set(cacheKey, {
                 accessToken: access_token,
-                expiresAt: Date.now() + (expires_in * 1000),
+                expiresAt: Date.now() + (expiresInSeconds * 1000),
             });
 
             return `Bearer ${access_token}`;

@@ -13,7 +13,7 @@ import addFormats from 'ajv-formats';
 const BUILT_IN_TOOLS: ToolSchema[] = [
     {
         name: 'mcp_execute_typescript',
-        description: 'Executes TypeScript code in a secure sandbox with access to `tools.*` SDK.',
+        description: 'Executes TypeScript code in a secure sandbox. Access MCP tools via the global `tools` object (e.g. `filesystem__list_directory` -> `await tools.filesystem.list_directory(...)`).',
         inputSchema: {
             type: 'object',
             properties: {
@@ -24,7 +24,7 @@ const BUILT_IN_TOOLS: ToolSchema[] = [
                 allowedTools: {
                     type: 'array',
                     items: { type: 'string' },
-                    description: 'Optional list of tools the script is allowed to call (e.g. ["github.*"]).'
+                    description: 'List of tool names (e.g. "filesystem.list_directory" or "filesystem.*") that the script is allowed to call.'
                 }
             },
             required: ['code']
@@ -32,7 +32,7 @@ const BUILT_IN_TOOLS: ToolSchema[] = [
     },
     {
         name: 'mcp_execute_python',
-        description: 'Executes Python code in a secure sandbox with access to `tools.*` SDK.',
+        description: 'Executes Python code in a secure sandbox. Access MCP tools via the global `tools` object (e.g. `filesystem__list_directory` -> `await tools.filesystem.list_directory(...)`).',
         inputSchema: {
             type: 'object',
             properties: {
@@ -43,7 +43,7 @@ const BUILT_IN_TOOLS: ToolSchema[] = [
                 allowedTools: {
                     type: 'array',
                     items: { type: 'string' },
-                    description: 'Optional list of tools the script is allowed to call (e.g. ["github.*"]).'
+                    description: 'List of tool names (e.g. "filesystem.list_directory" or "filesystem.*") that the script is allowed to call.'
                 }
             },
             required: ['code']
@@ -51,7 +51,7 @@ const BUILT_IN_TOOLS: ToolSchema[] = [
     },
     {
         name: 'mcp_execute_isolate',
-        description: 'Executes JavaScript code in a high-speed V8 isolate (no Deno/Node APIs).',
+        description: 'Executes JavaScript code in a high-speed V8 isolate. Access MCP tools via the global `tools` object (e.g. `await tools.filesystem.list_directory(...)`). No Deno/Node APIs. Use `console.log` for output.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -62,7 +62,7 @@ const BUILT_IN_TOOLS: ToolSchema[] = [
                 allowedTools: {
                     type: 'array',
                     items: { type: 'string' },
-                    description: 'Optional list of tools the script is allowed to call.'
+                    description: 'List of tool names (e.g. "filesystem.list_directory" or "filesystem.*") that the script is allowed to call.'
                 }
             },
             required: ['code']
@@ -139,7 +139,7 @@ export class GatewayService {
             const response = await client.call({
                 jsonrpc: '2.0',
                 id: 'discovery',
-                method: 'list_tools',
+                method: 'tools/list',
             }, context);
 
             if (response.result?.tools) {
@@ -206,7 +206,7 @@ export class GatewayService {
                 const response = await client.call({
                     jsonrpc: '2.0',
                     id: 'discovery',
-                    method: 'list_tools', // Standard MCP method
+                    method: 'tools/list', // Standard MCP method
                 }, context);
 
                 if (response.result?.tools) {
@@ -319,7 +319,7 @@ export class GatewayService {
             response = await client.call({
                 jsonrpc: '2.0',
                 id: context.correlationId,
-                method: 'call_tool',
+                method: 'tools/call',
                 params: {
                     name: toolName,
                     arguments: params,
@@ -352,7 +352,7 @@ export class GatewayService {
                     const response = await client.call({
                         jsonrpc: '2.0',
                         id: 'health',
-                        method: 'list_tools',
+                        method: 'tools/list',
                     }, context);
                     upstreamStatus[id] = response.error ? 'degraded' : 'active';
                 } catch (err) {

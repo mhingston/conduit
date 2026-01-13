@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
     entry: {
         index: 'src/index.ts',
-        'executors/pyodide.worker': 'src/executors/pyodide.worker.ts'
+        'pyodide.worker': 'src/executors/pyodide.worker.ts'
     },
     format: ['esm'],
     dts: true,

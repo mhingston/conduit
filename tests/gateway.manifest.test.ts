@@ -56,7 +56,7 @@ describe('GatewayService (Manifests)', () => {
         const stubs = await gateway.listToolStubs('test-upstream', context);
 
         expect(mockClient.getManifest).toHaveBeenCalled();
-        expect(mockClient.call).toHaveBeenCalledWith(expect.objectContaining({ method: 'list_tools' }), context);
+        expect(mockClient.call).toHaveBeenCalledWith(expect.objectContaining({ method: 'tools/list' }), context);
         expect(stubs).toHaveLength(1);
         expect(stubs[0].id).toBe('test-upstream__tool_rpc');
     });

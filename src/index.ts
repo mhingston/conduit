@@ -43,10 +43,12 @@ program
     .description('Help set up OAuth for an upstream MCP server')
     .requiredOption('--client-id <id>', 'OAuth Client ID')
     .requiredOption('--client-secret <secret>', 'OAuth Client Secret')
-    .requiredOption('--auth-url <url>', 'OAuth Authorization URL')
-    .requiredOption('--token-url <url>', 'OAuth Token URL')
+    .option('--auth-url <url>', 'OAuth Authorization URL')
+    .option('--token-url <url>', 'OAuth Token URL')
+    .option('--mcp-url <url>', 'MCP base URL (auto-discover OAuth metadata)')
     .option('--scopes <scopes>', 'OAuth Scopes (comma separated)')
     .option('--port <port>', 'Port for the local callback server', '3333')
+    .option('--pkce', 'Use PKCE for the authorization code flow')
     .action(async (options) => {
         try {
             await handleAuth({
@@ -54,8 +56,10 @@ program
                 clientSecret: options.clientSecret,
                 authUrl: options.authUrl,
                 tokenUrl: options.tokenUrl,
+                mcpUrl: options.mcpUrl,
                 scopes: options.scopes,
                 port: parseInt(options.port, 10),
+                usePkce: options.pkce || Boolean(options.mcpUrl),
             });
             console.log('\nSuccess! Configuration generated.');
         } catch (err: any) {
@@ -121,12 +125,25 @@ async function startServer() {
             transport = new StdioTransport(logger, requestController, concurrencyService);
             await transport.start();
             address = 'stdio';
+
+            // IMPORTANT: Even in stdio mode, we need a local socket for sandboxes to talk to
+            const internalTransport = new SocketTransport(logger, requestController, concurrencyService);
+            const internalPort = 0; // Random available port
+            const internalAddress = await internalTransport.listen({ port: internalPort });
+            executionService.ipcAddress = internalAddress;
+
+            // Register internal transport for shutdown
+            const originalShutdown = transport.close.bind(transport);
+            transport.close = async () => {
+                await originalShutdown();
+                await internalTransport.close();
+            };
         } else {
             transport = new SocketTransport(logger, requestController, concurrencyService);
             const port = configService.get('port');
             address = await transport.listen({ port });
+            executionService.ipcAddress = address;
         }
-        executionService.ipcAddress = address;
 
         // Pre-warm workers
         await requestController.warmup();

@@ -58,7 +58,7 @@ describe('GatewayService', () => {
         expect(axios.post).toHaveBeenCalledWith(
             'http://u1',
             expect.objectContaining({
-                method: 'call_tool',
+                method: 'tools/call',
                 params: expect.objectContaining({ name: 't1' })
             }),
             expect.anything()

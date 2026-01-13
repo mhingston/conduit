@@ -3,7 +3,7 @@
 exports[`Asset Integrity (Golden Tests) > should match Isolate SDK snapshot 1`] = `
 "// Generated SDK for isolated-vm
 const __allowedTools = ["test__*","github__*"];
-const tools = {
+const _tools = {
   test: {
     async hello(args) {
       const resStr = await __callTool("test__hello", JSON.stringify(args || {}));
@@ -28,7 +28,19 @@ const tools = {
     const resStr = await __callTool(normalized, JSON.stringify(args || {}));
     return JSON.parse(resStr);
   },
-};"
+};
+
+const tools = new Proxy(_tools, {
+    get: (target, prop) => {
+        if (prop in target) return target[prop];
+        if (prop === 'then') return undefined;
+        if (typeof prop === 'string') {
+            throw new Error(\`Namespace '\${prop}' not found. It might be invalid, or all tools in it were disallowed.\`);
+        }
+        return undefined;
+    }
+});
+"
 `;
 
 exports[`Asset Integrity (Golden Tests) > should match Python SDK snapshot 1`] = `
@@ -67,7 +79,7 @@ tools = _Tools()"
 exports[`Asset Integrity (Golden Tests) > should match TypeScript SDK snapshot 1`] = `
 "// Generated SDK - Do not edit
 const __allowedTools = ["test__*","github__*"];
-const tools = {
+const _tools = {
   test: {
     /** Returns a greeting */
     async hello(args) {
@@ -93,5 +105,17 @@ const tools = {
     return await __internalCallTool(normalized, args);
   },
 };
+
+const tools = new Proxy(_tools, {
+    get: (target, prop) => {
+        if (prop in target) return target[prop];
+        if (prop === 'then') return undefined;
+        if (typeof prop === 'string') {
+            throw new Error(\`Namespace '\${prop}' not found. It might be invalid, or all tools in it were disallowed.\`);
+        }
+        return undefined;
+    }
+});
+
 (globalThis as any).tools = tools;"
 `;
