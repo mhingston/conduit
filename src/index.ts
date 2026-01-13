@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command } from 'commander';
 import { ConfigService } from './core/config.service.js';
 import { createLogger, loggerStorage } from './core/logger.js';
