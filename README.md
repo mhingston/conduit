@@ -108,6 +108,7 @@ npx conduit auth \
   --auth-url <url> \
   --token-url <url> \
   --scopes <scopes>
+```
 
 For Atlassian (3LO), include `offline_access` and set the audience:
 
@@ -118,7 +119,6 @@ npx conduit auth \
   --auth-url "https://auth.atlassian.com/authorize?audience=api.atlassian.com&prompt=consent" \
   --token-url "https://auth.atlassian.com/oauth/token" \
   --scopes "offline_access,read:me"
-```
 ```
 
 This will start a temporary local server, open your browser for authorization, and print the generated `credentials` block for your `conduit.yaml`.
