@@ -7,6 +7,8 @@ import { IUrlValidator } from '../core/interfaces/url.validator.interface.js';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { z } from 'zod';
 
 export type UpstreamInfo = {
@@ -14,6 +16,8 @@ export type UpstreamInfo = {
     credentials?: UpstreamCredentials;
 } & (
         | { type?: 'http'; url: string }
+        | { type: 'streamableHttp'; url: string }
+        | { type: 'sse'; url: string }
         | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string> }
     );
 
@@ -23,7 +27,7 @@ export class UpstreamClient {
     private authService: AuthService;
     private urlValidator: IUrlValidator;
     private mcpClient?: Client;
-    private transport?: StdioClientTransport;
+    private transport?: StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport;
     private connected: boolean = false;
 
     constructor(logger: Logger, info: UpstreamInfo, authService: AuthService, urlValidator: IUrlValidator) {
@@ -51,12 +55,71 @@ export class UpstreamClient {
             }, {
                 capabilities: {},
             });
+            return;
+        }
+
+        if (this.info.type === 'streamableHttp') {
+            this.transport = new StreamableHTTPClientTransport(new URL(this.info.url), {
+                fetch: this.createAuthedFetch(),
+            });
+            this.mcpClient = new Client({
+                name: 'conduit-gateway',
+                version: '1.0.0',
+            }, {
+                capabilities: {},
+            });
+            return;
+        }
+
+        if (this.info.type === 'sse') {
+            this.mcpClient = new Client({
+                name: 'conduit-gateway',
+                version: '1.0.0',
+            }, {
+                capabilities: {},
+            });
         }
     }
 
-    private async ensureConnected() {
-        if (!this.mcpClient || !this.transport) return;
+    private createAuthedFetch() {
+        const creds = this.info.credentials;
+        if (!creds) return fetch;
+
+        return async (input: any, init: any = {}) => {
+            const headers = new Headers(init.headers || {});
+            const authHeaders = await this.authService.getAuthHeaders(creds);
+            for (const [k, v] of Object.entries(authHeaders)) {
+                headers.set(k, v);
+            }
+            return fetch(input, { ...init, headers });
+        };
+    }
+
+    private async ensureConnected() { 
+        if (!this.mcpClient) return;
+
+        if (!this.transport && this.info.type === 'sse') {
+            const authHeaders = this.info.credentials
+                ? await this.authService.getAuthHeaders(this.info.credentials)
+                : {};
+
+            this.transport = new SSEClientTransport(new URL(this.info.url), {
+                fetch: this.createAuthedFetch(),
+                eventSourceInit: { headers: authHeaders } as any,
+                requestInit: { headers: authHeaders },
+            });
+        }
+
+        if (!this.transport) return;
         if (this.connected) return;
+
+        if (this.info.type === 'streamableHttp' || this.info.type === 'sse') {
+            const securityResult = await this.urlValidator.validateUrl(this.info.url);
+            if (!securityResult.valid) {
+                this.logger.error({ url: this.info.url }, 'Blocked upstream URL (SSRF)');
+                throw new Error(securityResult.message || 'Forbidden URL');
+            }
+        }
 
         try {
             this.logger.debug('Connecting to upstream transport...');
@@ -70,19 +133,23 @@ export class UpstreamClient {
     }
 
     async call(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
-        // Helper to determine type safely
-        const isStdio = (info: UpstreamInfo): info is { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string>; id: string; credentials?: UpstreamCredentials } => info.type === 'stdio';
+        const usesMcpClientTransport = (info: UpstreamInfo): info is (
+            | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string> }
+            | { type: 'streamableHttp'; url: string }
+            | { type: 'sse'; url: string }
+        ) & { id: string; credentials?: UpstreamCredentials } =>
+            info.type === 'stdio' || info.type === 'streamableHttp' || info.type === 'sse';
 
-        if (isStdio(this.info)) {
-            return this.callStdio(request);
-        } else {
-            return this.callHttp(request, context as ExecutionContext);
+        if (usesMcpClientTransport(this.info)) {
+            return this.callMcpClient(request);
         }
+
+        return this.callHttp(request, context as ExecutionContext);
     }
 
-    private async callStdio(request: JSONRPCRequest): Promise<JSONRPCResponse> {
+    private async callMcpClient(request: JSONRPCRequest): Promise<JSONRPCResponse> {
         if (!this.mcpClient) {
-            return { jsonrpc: '2.0', id: request.id, error: { code: -32603, message: 'Stdio client not initialized' } };
+            return { jsonrpc: '2.0', id: request.id, error: { code: -32603, message: 'MCP client not initialized' } };
         }
 
         try {
@@ -128,13 +195,13 @@ export class UpstreamClient {
                 };
             }
         } catch (error: any) {
-            this.logger.error({ err: error }, 'Stdio call failed');
+            this.logger.error({ err: error }, 'MCP call failed');
             return {
                 jsonrpc: '2.0',
                 id: request.id,
                 error: {
                     code: error.code || -32603,
-                    message: error.message || 'Internal error in stdio transport'
+                    message: error.message || 'Internal error in MCP transport'
                 }
             };
         }
@@ -142,7 +209,9 @@ export class UpstreamClient {
 
     private async callHttp(request: JSONRPCRequest, context: ExecutionContext): Promise<JSONRPCResponse> {
         // Narrowing for TS
-        if (this.info.type === 'stdio') throw new Error('Unreachable');
+        if (this.info.type === 'stdio' || this.info.type === 'streamableHttp' || this.info.type === 'sse') {
+            throw new Error('Unreachable');
+        }
         const url = this.info.url;
 
         const headers: Record<string, string> = {
@@ -204,7 +273,7 @@ export class UpstreamClient {
         }
     }
     async getManifest(context: ExecutionContext): Promise<ToolManifest | null> {
-        if (this.info.type !== 'http') return null;
+        if (this.info.type && this.info.type !== 'http') return null;
 
         try {
             const baseUrl = this.info.url.replace(/\/$/, ''); // Remove trailing slash

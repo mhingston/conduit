@@ -157,27 +157,39 @@ export async function handleAuth(options: AuthOptions) {
             }
 
             try {
-                const body = new URLSearchParams();
-                body.set('grant_type', 'authorization_code');
-                body.set('code', code);
-                body.set('redirect_uri', redirectUri);
-                body.set('client_id', options.clientId);
+                const payload: Record<string, string> = {
+                    grant_type: 'authorization_code',
+                    code,
+                    redirect_uri: redirectUri,
+                    client_id: options.clientId,
+                };
+
                 if (options.clientSecret) {
-                    body.set('client_secret', options.clientSecret);
+                    payload.client_secret = options.clientSecret;
                 }
                 if (codeVerifier) {
-                    body.set('code_verifier', codeVerifier);
+                    payload.code_verifier = codeVerifier;
                 }
                 if (resolvedResource) {
-                    body.set('resource', resolvedResource);
+                    payload.resource = resolvedResource;
                 }
 
-                const response = await axios.post(resolvedTokenUrl, body, {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json',
-                    },
-                });
+                const tokenHostname = new URL(resolvedTokenUrl).hostname;
+                const useJson = tokenHostname === 'auth.atlassian.com';
+
+                const response = useJson
+                    ? await axios.post(resolvedTokenUrl, payload, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                    })
+                    : await axios.post(resolvedTokenUrl, new URLSearchParams(payload), {
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Accept': 'application/json',
+                        },
+                    });
 
                 const { refresh_token, access_token } = response.data;
 

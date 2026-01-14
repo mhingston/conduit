@@ -66,6 +66,20 @@ upstreams:
   - id: github
     type: http
     url: "http://localhost:3000/mcp"
+
+  # Remote MCP servers that use Streamable HTTP (preferred) / SSE:
+  - id: atlassian
+    type: streamableHttp
+    url: "https://mcp.atlassian.com/v1/sse"
+    credentials:
+      type: oauth2
+      clientId: ${ATLASSIAN_CLIENT_ID}
+      clientSecret: ${ATLASSIAN_CLIENT_SECRET}
+      tokenUrl: "https://auth.atlassian.com/oauth/token"
+      refreshToken: ${ATLASSIAN_REFRESH_TOKEN}
+      # Atlassian expects JSON token requests:
+      tokenRequestFormat: json
+
   - id: slack
     type: http
     url: "https://your-mcp-server/mcp"
@@ -75,7 +89,8 @@ upstreams:
       clientSecret: ${SLACK_CLIENT_SECRET}
       tokenUrl: "https://slack.com/api/oauth.v2.access"
       refreshToken: ${SLACK_REFRESH_TOKEN}
-    # Or use local stdio for testing:
+
+  # Or use local stdio for testing:
   - id: filesystem
     type: stdio
     command: npx
@@ -93,9 +108,22 @@ npx conduit auth \
   --auth-url <url> \
   --token-url <url> \
   --scopes <scopes>
+
+For Atlassian (3LO), include `offline_access` and set the audience:
+
+```bash
+npx conduit auth \
+  --client-id <id> \
+  --client-secret <secret> \
+  --auth-url "https://auth.atlassian.com/authorize?audience=api.atlassian.com&prompt=consent" \
+  --token-url "https://auth.atlassian.com/oauth/token" \
+  --scopes "offline_access,read:me"
+```
 ```
 
 This will start a temporary local server, open your browser for authorization, and print the generated `credentials` block for your `conduit.yaml`.
+
+Note: some providers (including Atlassian) use rotating refresh tokens. Conduit will cache the latest refresh token in-memory while running, but it does not currently persist the rotated token back into `conduit.yaml`. If you restart Conduit and your old refresh token has expired/rotated, re-run `conduit auth` and update your config.
 
 For GitHub MCP (remote server OAuth), you can auto-discover endpoints and use PKCE:
 

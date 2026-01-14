@@ -12,6 +12,8 @@ export interface UpstreamCredentials {
     tokenUrl?: string;
     refreshToken?: string;
     scopes?: string[];
+    tokenRequestFormat?: 'form' | 'json';
+    tokenParams?: Record<string, string>;
 }
 
 interface CachedToken {
@@ -23,6 +25,8 @@ export class AuthService {
     private logger: Logger;
     // Cache tokens separately from credentials to avoid mutation
     private tokenCache = new Map<string, CachedToken>();
+    // Keep the latest refresh token in-memory (rotating tokens)
+    private refreshTokenCache = new Map<string, string>();
     // Prevent concurrent refresh requests for the same client
     private refreshLocks = new Map<string, Promise<string>>();
 
@@ -81,29 +85,67 @@ export class AuthService {
         this.logger.info({ tokenUrl: creds.tokenUrl, clientId: creds.clientId }, 'Refreshing OAuth2 token');
 
         try {
-            const body = new URLSearchParams();
-            body.set('grant_type', 'refresh_token');
-            body.set('refresh_token', creds.refreshToken);
-            body.set('client_id', creds.clientId);
-            if (creds.clientSecret) {
-                body.set('client_secret', creds.clientSecret);
+            const tokenUrl = creds.tokenUrl;
+            const cachedRefreshToken = this.refreshTokenCache.get(cacheKey);
+            const refreshToken = cachedRefreshToken || creds.refreshToken;
+
+            if (!refreshToken) {
+                throw new Error('OAuth2 credentials missing required fields for refresh');
             }
 
-            const response = await axios.post(creds.tokenUrl, body, {
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Accept': 'application/json',
-                },
-            });
+            const payload: Record<string, string> = {
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken,
+                client_id: creds.clientId,
+            };
 
-            const { access_token, expires_in } = response.data;
-            const expiresInSeconds = Number(expires_in) || 3600;
+            if (creds.clientSecret) {
+                payload.client_secret = creds.clientSecret;
+            }
+
+            if (creds.tokenParams) {
+                Object.assign(payload, creds.tokenParams);
+            }
+
+            const requestFormat = (() => {
+                if (creds.tokenRequestFormat) return creds.tokenRequestFormat;
+                try {
+                    const hostname = new URL(tokenUrl).hostname;
+                    if (hostname === 'auth.atlassian.com') return 'json';
+                } catch {
+                    // ignore
+                }
+                return 'form';
+            })();
+
+            const response = requestFormat === 'json'
+                ? await axios.post(tokenUrl, payload, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                })
+                : await axios.post(tokenUrl, new URLSearchParams(payload), {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json',
+                    },
+                });
+
+            const { access_token, expires_in, refresh_token } = response.data;
+            const expiresInRaw = Number(expires_in);
+            const expiresInSeconds = Number.isFinite(expiresInRaw) ? expiresInRaw : 3600;
 
             // Cache the token (don't mutate the input credentials)
             this.tokenCache.set(cacheKey, {
                 accessToken: access_token,
                 expiresAt: Date.now() + (expiresInSeconds * 1000),
             });
+
+            // Some providers (e.g. Atlassian) rotate refresh tokens
+            if (typeof refresh_token === 'string' && refresh_token.length > 0) {
+                this.refreshTokenCache.set(cacheKey, refresh_token);
+            }
 
             return `Bearer ${access_token}`;
         } catch (err: any) {

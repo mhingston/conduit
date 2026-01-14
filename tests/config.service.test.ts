@@ -81,6 +81,9 @@ upstreams:
       clientSecret: my-secret
       tokenUrl: http://token
       refreshToken: my-refresh
+      tokenRequestFormat: json
+      tokenParams:
+        audience: api.atlassian.com
 `);
 
         vi.stubEnv('CONFIG_FILE', 'conduit.test.yaml');
@@ -92,8 +95,33 @@ upstreams:
             clientId: 'my-id',
             clientSecret: 'my-secret',
             tokenUrl: 'http://token',
-            refreshToken: 'my-refresh'
+            refreshToken: 'my-refresh',
+            tokenRequestFormat: 'json',
+            tokenParams: { audience: 'api.atlassian.com' },
         });
+
+        existsSpy.mockRestore();
+        readSpy.mockRestore();
+    });
+
+    it('should parse streamableHttp upstream correctly', () => {
+        const existsSpy = vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => p.endsWith('conduit.test.yaml'));
+        const readSpy = vi.spyOn(fs, 'readFileSync').mockReturnValue(`
+upstreams:
+  - id: atlassian
+    type: streamableHttp
+    url: https://mcp.atlassian.com/v1/sse
+    credentials:
+      type: bearer
+      bearerToken: test-token
+`);
+
+        vi.stubEnv('CONFIG_FILE', 'conduit.test.yaml');
+        const configService = new ConfigService();
+        const upstreams = configService.get('upstreams');
+        expect(upstreams).toHaveLength(1);
+        expect(upstreams![0].type).toBe('streamableHttp');
+        expect((upstreams![0] as any).url).toBe('https://mcp.atlassian.com/v1/sse');
 
         existsSpy.mockRestore();
         readSpy.mockRestore();

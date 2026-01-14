@@ -58,28 +58,30 @@ exports[`Asset Integrity (Golden Tests) > should match Python SDK snapshot 1`] =
 "# Generated SDK - Do not edit
 _allowed_tools = ["test__*","github__*"]
 
-class _ToolNamespace:
-    def __init__(self, methods):
-        for name, fn in methods.items():
-            setattr(self, name, fn)
+class _test_Namespace:
+    async def hello(self, args=None, **kwargs):
+        params = args if args is not None else kwargs
+        return await _internal_call_tool("test__hello", params)
+
+class _github_Namespace:
+    async def create_issue(self, args=None, **kwargs):
+        params = args if args is not None else kwargs
+        return await _internal_call_tool("github__create_issue", params)
 
 class _Tools:
     def __init__(self):
-        self.test = _ToolNamespace({
-            "hello": lambda args, n="test__hello": _internal_call_tool(n, args)
-        })
-        self.github = _ToolNamespace({
-            "create_issue": lambda args, n="github__create_issue": _internal_call_tool(n, args)
-        })
+        self.test = _test_Namespace()
+        self.github = _github_Namespace()
 
     def __getattr__(self, name):
         # Flat access fallback: search all namespaces
-        for ns in self.__dict__.values():
-            if isinstance(ns, _ToolNamespace) and hasattr(ns, name):
-                return getattr(ns, name)
+        for attr_name in dir(self):
+            attr = getattr(self, attr_name, None)
+            if attr and hasattr(attr, name):
+                return getattr(attr, name)
         raise AttributeError(f"Namespace or Tool '{name}' not found")
 
-    async def raw(self, name, args):
+    async def raw(self, name, args=None):
         """Call a tool by its full name (escape hatch for dynamic/unknown tools)"""
         normalized = name.replace(".", "__")
         if _allowed_tools is not None:
@@ -89,7 +91,7 @@ class _Tools:
             )
             if not allowed:
                 raise PermissionError(f"Tool {name} is not in the allowlist")
-        return await _internal_call_tool(normalized, args)
+        return await _internal_call_tool(normalized, args or {})
 
 tools = _Tools()"
 `;

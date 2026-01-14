@@ -70,4 +70,61 @@ describe('AuthService', () => {
         expect(headers2['Authorization']).toBe('Bearer cached-access');
         expect(axios.post).toHaveBeenCalledTimes(1); // Still 1, not 2
     });
+
+    it('should send JSON token refresh for Atlassian token endpoint', async () => {
+        const creds: any = {
+            type: 'oauth2',
+            clientId: 'id',
+            clientSecret: 'secret',
+            tokenUrl: 'https://auth.atlassian.com/oauth/token',
+            refreshToken: 'refresh',
+        };
+
+        (axios.post as any).mockResolvedValue({
+            data: {
+                access_token: 'new-access',
+                expires_in: 0,
+            },
+        });
+
+        await authService.getAuthHeaders(creds);
+
+        const [, body, config] = (axios.post as any).mock.calls[0];
+        expect(body).toMatchObject({
+            grant_type: 'refresh_token',
+            refresh_token: 'refresh',
+            client_id: 'id',
+            client_secret: 'secret',
+        });
+        expect(config.headers['Content-Type']).toBe('application/json');
+    });
+
+    it('should include tokenParams and cache rotating refresh tokens', async () => {
+        const creds: any = {
+            type: 'oauth2',
+            clientId: 'id',
+            clientSecret: 'secret',
+            tokenUrl: 'https://auth.atlassian.com/oauth/token',
+            refreshToken: 'r1',
+            tokenRequestFormat: 'json',
+            tokenParams: { audience: 'api.atlassian.com' },
+        };
+
+        (axios.post as any)
+            .mockResolvedValueOnce({
+                data: { access_token: 'a1', expires_in: 0, refresh_token: 'r2' },
+            })
+            .mockResolvedValueOnce({
+                data: { access_token: 'a2', expires_in: 0 },
+            });
+
+        await authService.getAuthHeaders(creds);
+        await authService.getAuthHeaders(creds);
+
+        const firstBody = (axios.post as any).mock.calls[0][1];
+        expect(firstBody).toMatchObject({ refresh_token: 'r1', audience: 'api.atlassian.com' });
+
+        const secondBody = (axios.post as any).mock.calls[1][1];
+        expect(secondBody).toMatchObject({ refresh_token: 'r2', audience: 'api.atlassian.com' });
+    });
 });

@@ -144,15 +144,23 @@ export class GatewayService {
 
         let tools = this.schemaCache.get(packageId);
 
-        // Try manifest first if tools not cached
+        // Discover tools if not cached
         if (!tools) {
-            try {
-                // Try to get manifest FIRST
-                const manifest = await client.getManifest(context);
-                if (manifest && manifest.tools) {
-                    tools = manifest.tools as ToolSchema[];
-                } else {
-                    // Fall back to RPC discovery
+            // 1) Try to get manifest (if supported)
+            if (typeof (client as any).getManifest === 'function') {
+                try {
+                    const manifest = await (client as any).getManifest(context);
+                    if (manifest && manifest.tools) {
+                        tools = manifest.tools as ToolSchema[];
+                    }
+                } catch (e: any) {
+                    this.logger.debug({ upstreamId: packageId, err: e.message }, 'Manifest fetch failed (will fallback)');
+                }
+            }
+
+            // 2) Fall back to RPC discovery
+            if (!tools) {
+                try {
                     if (typeof (client as any).listTools === 'function') {
                         tools = await (client as any).listTools();
                     } else {
@@ -168,14 +176,14 @@ export class GatewayService {
                             this.logger.warn({ upstreamId: packageId, error: response.error }, 'Failed to discover tools via RPC');
                         }
                     }
+                } catch (e: any) {
+                    this.logger.error({ upstreamId: packageId, err: e.message }, 'Error during tool discovery');
                 }
+            }
 
-                if (tools && tools.length > 0) {
-                    this.schemaCache.set(packageId, tools);
-                    this.logger.info({ upstreamId: packageId, toolCount: tools.length }, 'Discovered tools from upstream');
-                }
-            } catch (e: any) {
-                this.logger.error({ upstreamId: packageId, err: e.message }, 'Error during tool discovery');
+            if (tools && tools.length > 0) {
+                this.schemaCache.set(packageId, tools);
+                this.logger.info({ upstreamId: packageId, toolCount: tools.length }, 'Discovered tools from upstream');
             }
         }
 

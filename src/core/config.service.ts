@@ -29,6 +29,8 @@ export const UpstreamCredentialsSchema = z.object({
     tokenUrl: z.string().optional(),
     refreshToken: z.string().optional(),
     scopes: z.array(z.string()).optional(),
+    tokenRequestFormat: z.enum(['form', 'json']).optional(),
+    tokenParams: z.record(z.string(), z.string()).optional(),
     apiKey: z.string().optional(),
     bearerToken: z.string().optional(),
     headerName: z.string().optional(),
@@ -41,6 +43,20 @@ export const HttpUpstreamSchema = z.object({
     credentials: UpstreamCredentialsSchema.optional(),
 });
 
+export const StreamableHttpUpstreamSchema = z.object({
+    id: z.string(),
+    type: z.literal('streamableHttp'),
+    url: z.string(),
+    credentials: UpstreamCredentialsSchema.optional(),
+});
+
+export const SseUpstreamSchema = z.object({
+    id: z.string(),
+    type: z.literal('sse'),
+    url: z.string(),
+    credentials: UpstreamCredentialsSchema.optional(),
+});
+
 export const StdioUpstreamSchema = z.object({
     id: z.string(),
     type: z.literal('stdio'),
@@ -49,7 +65,12 @@ export const StdioUpstreamSchema = z.object({
     env: z.record(z.string(), z.string()).optional(),
 });
 
-export const UpstreamInfoSchema = z.union([HttpUpstreamSchema, StdioUpstreamSchema]);
+export const UpstreamInfoSchema = z.union([
+    HttpUpstreamSchema,
+    StreamableHttpUpstreamSchema,
+    SseUpstreamSchema,
+    StdioUpstreamSchema,
+]);
 
 export type ResourceLimits = z.infer<typeof ResourceLimitsSchema>;
 
