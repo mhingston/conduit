@@ -10,6 +10,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { z } from 'zod';
+import dns from 'node:dns';
+import net from 'node:net';
+import { Agent } from 'undici';
 
 export type UpstreamInfo = {
     id: string;
@@ -29,6 +32,10 @@ export class UpstreamClient {
     private mcpClient?: Client;
     private transport?: StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport;
     private connected: boolean = false;
+
+    // Pinned-IP dispatchers per upstream origin (defends against DNS rebinding)
+    private dispatcherCache = new Map<string, { resolvedIp: string; agent: Agent }>();
+    private pinned?: { origin: string; hostname: string; resolvedIp?: string };
 
     constructor(logger: Logger, info: UpstreamInfo, authService: AuthService, urlValidator: IUrlValidator) {
         this.logger = logger.child({ upstreamId: info.id });
@@ -59,7 +66,10 @@ export class UpstreamClient {
         }
 
         if (this.info.type === 'streamableHttp') {
-            this.transport = new StreamableHTTPClientTransport(new URL(this.info.url), {
+            const upstreamUrl = new URL(this.info.url);
+            this.pinned = { origin: upstreamUrl.origin, hostname: upstreamUrl.hostname };
+
+            this.transport = new StreamableHTTPClientTransport(upstreamUrl, {
                 fetch: this.createAuthedFetch(),
             });
             this.mcpClient = new Client({
@@ -72,6 +82,9 @@ export class UpstreamClient {
         }
 
         if (this.info.type === 'sse') {
+            const upstreamUrl = new URL(this.info.url);
+            this.pinned = { origin: upstreamUrl.origin, hostname: upstreamUrl.hostname };
+
             this.mcpClient = new Client({
                 name: 'conduit-gateway',
                 version: '1.0.0',
@@ -81,17 +94,89 @@ export class UpstreamClient {
         }
     }
 
+    private getDispatcher(origin: string, hostname: string, resolvedIp: string): Agent {
+        const existing = this.dispatcherCache.get(origin);
+        if (existing && existing.resolvedIp === resolvedIp) {
+            return existing.agent;
+        }
+
+        if (existing) {
+            try {
+                existing.agent.close();
+            } catch {
+                // ignore
+            }
+        }
+
+        const agent = new Agent({
+            connect: {
+                lookup: (lookupHostname: string, options: any, callback: any) => {
+                    if (lookupHostname === hostname) {
+                        callback(null, resolvedIp, net.isIP(resolvedIp));
+                        return;
+                    }
+                    dns.lookup(lookupHostname, options, callback);
+                },
+            },
+        });
+
+        this.dispatcherCache.set(origin, { resolvedIp, agent });
+        return agent;
+    }
+
     private createAuthedFetch() {
         const creds = this.info.credentials;
-        if (!creds) return fetch;
+        const pinned = this.pinned;
+
+        // Fall back to global fetch
+        const baseFetch = fetch;
 
         return async (input: any, init: any = {}) => {
-            const headers = new Headers(init.headers || {});
-            const authHeaders = await this.authService.getAuthHeaders(creds);
-            for (const [k, v] of Object.entries(authHeaders)) {
-                headers.set(k, v);
+            const requestUrlStr = (() => {
+                if (typeof input === 'string') return input;
+                if (input instanceof URL) return input.toString();
+                if (input instanceof Request) return input.url;
+                return String(input);
+            })();
+
+            const requestUrl = pinned
+                ? new URL(requestUrlStr, pinned.origin)
+                : new URL(requestUrlStr);
+
+            // Hard safety boundary: never allow fetch to escape upstream origin
+            if (pinned && requestUrl.origin !== pinned.origin) {
+                throw new Error(`Forbidden upstream redirect/origin: ${requestUrl.origin}`);
             }
-            return fetch(input, { ...init, headers });
+
+            // Validate and (optionally) pin resolved IP for DNS-rebinding defense
+            if (pinned && !pinned.resolvedIp) {
+                const securityResult = await this.urlValidator.validateUrl(pinned.origin);
+                if (!securityResult.valid) {
+                    throw new Error(securityResult.message || 'Forbidden URL');
+                }
+                pinned.resolvedIp = securityResult.resolvedIp;
+            }
+
+            const headers = new Headers((input instanceof Request ? input.headers : undefined) || undefined);
+            const initHeaders = new Headers(init.headers || {});
+            for (const [k, v] of initHeaders.entries()) headers.set(k, v);
+
+            if (creds) {
+                const authHeaders = await this.authService.getAuthHeaders(creds);
+                for (const [k, v] of Object.entries(authHeaders)) {
+                    headers.set(k, v);
+                }
+            }
+
+            const request = input instanceof Request
+                ? new Request(input, { ...init, headers, redirect: init.redirect ?? 'manual' })
+                : new Request(requestUrl.toString(), { ...init, headers, redirect: init.redirect ?? 'manual' });
+
+            const dispatcher = (pinned && pinned.resolvedIp)
+                ? this.getDispatcher(pinned.origin, pinned.hostname, pinned.resolvedIp)
+                : undefined;
+
+            return baseFetch(request, dispatcher ? { dispatcher } : undefined);
         };
     }
 
@@ -118,6 +203,9 @@ export class UpstreamClient {
             if (!securityResult.valid) {
                 this.logger.error({ url: this.info.url }, 'Blocked upstream URL (SSRF)');
                 throw new Error(securityResult.message || 'Forbidden URL');
+            }
+            if (this.pinned) {
+                this.pinned.resolvedIp = securityResult.resolvedIp;
             }
         }
 

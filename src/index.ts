@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { createRequire } from 'node:module';
 import { ConfigService } from './core/config.service.js';
 import { createLogger, loggerStorage } from './core/logger.js';
 import { SocketTransport } from './transport/socket.transport.js';
@@ -20,10 +21,13 @@ import { handleAuth } from './auth.cmd.js';
 
 const program = new Command();
 
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json') as { version?: string };
+
 program
     .name('conduit')
     .description('A secure Code Mode execution substrate for MCP agents')
-    .version('1.0.0');
+    .version(pkg.version || '0.0.0');
 
 program
     .command('serve', { isDefault: true })

@@ -44,33 +44,36 @@ export class IsolateExecutor implements Executor {
 
             let currentLogBytes = 0;
             let currentErrorBytes = 0;
+            let totalLogEntries = 0;
 
             // Inject console.log/error for output capture
-            // Inject console.log/error for output capture
             await jail.set('__log', new ivm.Callback((msg: string) => {
+                if (totalLogEntries + 1 > limits.maxLogEntries) {
+                    throw new Error('[LIMIT_LOG_ENTRIES]');
+                }
                 if (currentLogBytes + msg.length + 1 > limits.maxOutputBytes) {
-                    // Check log entry count limit? We don't track count here yet effectively, but bytes is safer.
-                    // The interface says maxOutputBytes applies to total output.
                     throw new Error('[LIMIT_LOG]');
                 }
-                if (currentLogBytes < limits.maxOutputBytes) {
-                    logs.push(msg);
-                    currentLogBytes += msg.length + 1; // +1 for newline approximation
-                }
+
+                totalLogEntries++;
+                logs.push(msg);
+                currentLogBytes += msg.length + 1; // +1 for newline approximation
             }));
             await jail.set('__error', new ivm.Callback((msg: string) => {
+                if (totalLogEntries + 1 > limits.maxLogEntries) {
+                    throw new Error('[LIMIT_LOG_ENTRIES]');
+                }
                 if (currentErrorBytes + msg.length + 1 > limits.maxOutputBytes) {
                     throw new Error('[LIMIT_OUTPUT]');
                 }
-                if (currentErrorBytes < limits.maxOutputBytes) {
-                    errors.push(msg);
-                    currentErrorBytes += msg.length + 1;
-                }
+
+                totalLogEntries++;
+                errors.push(msg);
+                currentErrorBytes += msg.length + 1;
             }));
 
             // Async tool bridge (ID-based to avoid Promise transfer issues)
             let requestIdCounter = 0;
-            const pendingToolCalls = new Map<number, Promise<any>>(); // Not used by Host, but Host initiates work
 
             await jail.set('__dispatchToolCall', new ivm.Callback((nameStr: string, argsStr: string) => {
                 const requestId = ++requestIdCounter;
@@ -240,6 +243,30 @@ export class IsolateExecutor implements Executor {
                     error: {
                         code: ConduitError.MemoryLimitExceeded,
                         message: 'Memory limit exceeded',
+                    },
+                };
+            }
+
+            if (message.includes('[LIMIT_LOG_ENTRIES]')) {
+                return {
+                    stdout: logs.join('\n'),
+                    stderr: errors.join('\n'),
+                    exitCode: null,
+                    error: {
+                        code: ConduitError.LogLimitExceeded,
+                        message: 'Log entry limit exceeded',
+                    },
+                };
+            }
+
+            if (message.includes('[LIMIT_LOG]') || message.includes('[LIMIT_OUTPUT]')) {
+                return {
+                    stdout: logs.join('\n'),
+                    stderr: errors.join('\n'),
+                    exitCode: null,
+                    error: {
+                        code: ConduitError.OutputLimitExceeded,
+                        message: 'Output limit exceeded',
                     },
                 };
             }

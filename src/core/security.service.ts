@@ -38,16 +38,16 @@ export class SecurityService implements IUrlValidator {
         return this.networkPolicy.checkRateLimit(key);
     }
 
+    isMasterToken(token: string): boolean {
+        if (!this.ipcToken) return true;
+        const expected = Buffer.from(this.ipcToken);
+        const actual = Buffer.from(token || '');
+        return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+    }
+
     validateIpcToken(token: string): boolean {
         // Fix Sev1: Use timing-safe comparison for sensitive tokens
-        if (!this.ipcToken) {
-            return true;
-        }
-
-        const expected = Buffer.from(this.ipcToken);
-        const actual = Buffer.from(token);
-
-        if (expected.length === actual.length && crypto.timingSafeEqual(expected, actual)) {
+        if (this.isMasterToken(token)) {
             return true;
         }
 

@@ -43,6 +43,7 @@ describe('RequestController Routing', () => {
             createSession: vi.fn().mockReturnValue('token'),
             invalidateSession: vi.fn(),
             getIpcToken: vi.fn().mockReturnValue('master-token'),
+            isMasterToken: vi.fn().mockReturnValue(true),
             validateIpcToken: vi.fn().mockReturnValue(true),
             getSession: vi.fn(),
             checkRateLimit: vi.fn().mockReturnValue(true),

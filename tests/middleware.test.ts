@@ -15,6 +15,7 @@ describe('Middleware Tests', () => {
             validateToken: vi.fn(),
             checkRateLimit: vi.fn(),
             getIpcToken: vi.fn(),
+            isMasterToken: vi.fn(),
             validateIpcToken: vi.fn(),
             getSession: vi.fn(),
         };
@@ -39,8 +40,7 @@ describe('Middleware Tests', () => {
             authMiddleware = new AuthMiddleware(mockSecurityService as SecurityService);
         });
 
-        it('should validate bearer token', () => {
-            mockSecurityService.validateToken.mockReturnValue(true);
+        it('should validate bearer token', async () => {
             const request = {
                 jsonrpc: '2.0',
                 id: 1,
@@ -48,24 +48,27 @@ describe('Middleware Tests', () => {
                 auth: { bearerToken: 'valid-token' }
             };
 
-            mockSecurityService.getIpcToken.mockReturnValue('master-token');
+            // Not master and not a valid session -> Forbidden
+            mockSecurityService.isMasterToken.mockReturnValue(false);
             mockSecurityService.validateIpcToken.mockReturnValue(false);
-            // Mock validateToken behavior via logic or specific mock if used, but AuthMiddleware uses getIpcToken/validateIpcToken
 
-            authMiddleware.handle(request as any, context, mockNext);
+            const result1 = await authMiddleware.handle(request as any, context, mockNext);
+            expect(mockSecurityService.isMasterToken).toHaveBeenCalledWith('valid-token');
             expect(mockSecurityService.validateIpcToken).toHaveBeenCalledWith('valid-token');
-            expect(mockNext).not.toHaveBeenCalled(); // Should fail because neither master nor session valid
-            // Wait, logic says: isMaster = token === getIpcToken(). isSession = validateIpcToken() && !isMaster.
-            // If valid-token is NOT master and NOT session, it returns 403.
+            expect(result1?.error?.code).toBe(ConduitError.Forbidden);
+            expect(mockNext).not.toHaveBeenCalled();
 
-            // Let's make it a master token to pass 'valid-token' test
-            mockSecurityService.getIpcToken.mockReturnValue('valid-token');
-            authMiddleware.handle(request as any, context, mockNext);
+            // Master token -> allowed
+            mockNext.mockClear();
+            mockSecurityService.isMasterToken.mockReturnValue(true);
+
+            const result2 = await authMiddleware.handle(request as any, context, mockNext);
+            expect(result2?.error).toBeUndefined();
             expect(mockNext).toHaveBeenCalled();
         });
 
         it('should throw Forbidden if token is invalid', async () => {
-            mockSecurityService.getIpcToken.mockReturnValue('master-token');
+            mockSecurityService.isMasterToken.mockReturnValue(false);
             mockSecurityService.validateIpcToken.mockReturnValue(false);
 
             const request = {
@@ -76,7 +79,7 @@ describe('Middleware Tests', () => {
             };
 
             const result = await authMiddleware.handle(request as any, context, mockNext);
-            expect(result.error?.code).toBe(ConduitError.Forbidden);
+            expect(result?.error?.code).toBe(ConduitError.Forbidden);
             expect(mockNext).not.toHaveBeenCalled();
         });
     });

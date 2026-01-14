@@ -12,10 +12,9 @@ export class AuthMiddleware implements Middleware {
         next: NextFunction
     ): Promise<JSONRPCResponse | null> {
         const providedToken = request.auth?.bearerToken || '';
-        const masterToken = this.securityService.getIpcToken();
 
         // If no master token is set (stdio mode), treat all requests as master (auth disabled)
-        const isMaster = !masterToken || providedToken === masterToken;
+        const isMaster = this.securityService.isMasterToken(providedToken);
         const isSession = !isMaster && this.securityService.validateIpcToken(providedToken);
 
         if (!isMaster && !isSession) {
