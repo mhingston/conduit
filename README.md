@@ -39,6 +39,8 @@ Conduit is optimized for:
 
 Conduit executes **short-lived, isolated programs** with explicit limits.
 
+[![Watch the video](https://img.youtube.com/vi/pNqUPt9NUNY/0.jpg)](https://www.youtube.com/watch?v=pNqUPt9NUNY)
+
 ---
 
 ## Installation
